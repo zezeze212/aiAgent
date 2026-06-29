@@ -3,6 +3,7 @@ package com.example.agent.service;
 import com.example.agent.config.DeepSeekProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.ToolDecision;
+import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,7 @@ public class SimpleAgentService {
 
     private final ObjectMapper objectMapper;
 
-    private final ToolService toolService;
+    private final ToolRegistry toolRegistry;
 
     public AgentAskResponse ask(String userMessage) {
         ToolDecision decision = decideTool(userMessage);
@@ -40,7 +41,7 @@ public class SimpleAgentService {
         }
 
         String toolName = decision.getToolName();
-        String toolResult = executeTool(toolName, decision.getArguments());
+        String toolResult = toolRegistry.execute(toolName, decision.getArguments());
 
         String finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
 
@@ -53,51 +54,44 @@ public class SimpleAgentService {
     }
 
     private ToolDecision decideTool(String userMessage) {
+        String toolsPrompt = toolRegistry.buildToolsPrompt();
+
         String content = callDeepSeek(List.of(
                 Map.of(
                         "role", "system",
                         "content", """
-                                你是一个工具调用决策助手。
-                                你需要判断用户问题是否需要调用后端工具。
-                                
-                                当前可用工具有两个：
-                                
-                                1. getCurrentTime
-                                作用：获取当前北京时间。
-                                参数格式：
-                                {}
-                                
-                                2. analyzeJavaError
-                                作用：分析 Java 后端、Spring Boot、MyBatis、SQL、接口调用相关报错。
-                                参数格式：
-                                {
-                                  "log": "用户提供的报错日志或错误描述"
-                                }
-                                
-                                调用规则：
-                                - 如果用户问当前时间、现在几点、今天日期，调用 getCurrentTime。
-                                - 如果用户提供 Java、Spring、MyBatis、SQL、接口、JSON、权限、连接失败等报错，并询问原因或排查方式，调用 analyzeJavaError。
-                                - 如果用户只是问概念问题，不需要调用工具，直接回答。
-                                - 如果用户想分析报错，但是没有提供具体报错内容，不要调用工具，直接提示用户补充日志。
-                                
-                                你只能返回 JSON，不要返回 Markdown，不要返回解释文字，不要使用 ```json 包裹。
-                                
-                                如果需要工具，JSON 格式必须是：
-                                {
-                                  "needTool": true,
-                                  "toolName": "工具名称，只能是 getCurrentTime 或 analyzeJavaError",
-                                  "arguments": {},
-                                  "directAnswer": ""
-                                }
-                                
-                                如果不需要工具，返回：
-                                {
-                                  "needTool": false,
-                                  "toolName": "",
-                                  "arguments": {},
-                                  "directAnswer": "直接回答用户的问题"
-                                }
-                                """
+                            你是一个工具调用决策助手。
+                            你需要判断用户问题是否需要调用后端工具。
+                            
+                            当前可用工具如下：
+                            
+                            %s
+                            
+                            调用规则：
+                            - 如果用户问题需要某个工具才能准确回答，则调用对应工具。
+                            - 如果用户只是问概念问题，不需要调用工具，直接回答。
+                            - 如果用户想分析报错，但是没有提供具体报错内容，不要调用工具，直接提示用户补充日志。
+                            - toolName 必须严格使用工具名称，不要自己编造工具名。
+                            - arguments 必须严格符合工具参数格式。
+                            
+                            你只能返回 JSON，不要返回 Markdown，不要返回解释文字，不要使用 ```json 包裹。
+                            
+                            如果需要工具，JSON 格式必须是：
+                            {
+                              "needTool": true,
+                              "toolName": "工具名称",
+                              "arguments": {},
+                              "directAnswer": ""
+                            }
+                            
+                            如果不需要工具，返回：
+                            {
+                              "needTool": false,
+                              "toolName": "",
+                              "arguments": {},
+                              "directAnswer": "直接回答用户的问题"
+                            }
+                            """.formatted(toolsPrompt)
                 ),
                 Map.of(
                         "role", "user",
@@ -118,36 +112,6 @@ public class SimpleAgentService {
         }
     }
 
-    private String executeTool(String toolName, Map<String, Object> arguments) {
-        if ("getCurrentTime".equals(toolName)) {
-            return toolService.getCurrentTime();
-        }
-
-        if ("analyzeJavaError".equals(toolName)) {
-            String logText = getStringArg(arguments, "log");
-
-            if (logText == null || logText.isBlank()) {
-                return "缺少报错日志参数 log，无法分析错误";
-            }
-
-            return toolService.analyzeJavaError(logText);
-        }
-
-        return "未知工具：" + toolName;
-    }
-
-    private String getStringArg(Map<String, Object> arguments, String key) {
-        if (arguments == null) {
-            return null;
-        }
-
-        Object value = arguments.get(key);
-        if (value == null) {
-            return null;
-        }
-
-        return value.toString();
-    }
 
     private String summarizeWithToolResult(String userMessage, String toolName, String toolResult) {
         return callDeepSeek(List.of(
