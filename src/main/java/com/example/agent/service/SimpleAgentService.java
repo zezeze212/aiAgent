@@ -3,6 +3,7 @@ package com.example.agent.service;
 import com.example.agent.config.DeepSeekProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.ToolDecision;
+import com.example.agent.dto.ToolExecutionResult;
 import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,27 +30,74 @@ public class SimpleAgentService {
     private final ToolRegistry toolRegistry;
 
     public AgentAskResponse ask(String userMessage) {
+        String traceId = UUID.randomUUID().toString().substring(0, 8);
+        long agentStartTime = System.currentTimeMillis();
+
+        log.info("Agent 请求开始，traceId={}, userMessage={}", traceId, userMessage);
+
+        long decisionStartTime = System.currentTimeMillis();
         ToolDecision decision = decideTool(userMessage);
+        long decisionCostMs = System.currentTimeMillis() - decisionStartTime;
+
+        log.info("Agent 工具决策完成，traceId={}, needTool={}, toolName={}, decisionCostMs={}",
+                traceId,
+                decision.getNeedTool(),
+                decision.getToolName(),
+                decisionCostMs);
 
         if (Boolean.FALSE.equals(decision.getNeedTool())) {
+            long agentCostMs = System.currentTimeMillis() - agentStartTime;
+
+            log.info("Agent 请求完成，traceId={}, usedTool=false, agentCostMs={}",
+                    traceId,
+                    agentCostMs);
+
             return new AgentAskResponse(
                     decision.getDirectAnswer(),
                     false,
                     null,
+                    null,
+                    null,
+                    agentCostMs,
+                    traceId,
+                    decisionCostMs,
                     null
             );
         }
 
         String toolName = decision.getToolName();
-        String toolResult = toolRegistry.execute(toolName, decision.getArguments());
 
+        ToolExecutionResult toolExecutionResult = toolRegistry.executeWithResult(
+                toolName,
+                decision.getArguments()
+        );
+
+        String toolResult = toolExecutionResult.getResult();
+
+        long summaryStartTime = System.currentTimeMillis();
         String finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
+        long summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+
+        long agentCostMs = System.currentTimeMillis() - agentStartTime;
+
+        log.info("Agent 请求完成，traceId={}, usedTool=true, toolName={}, decisionCostMs={}, toolCostMs={}, summaryCostMs={}, agentCostMs={}",
+                traceId,
+                toolName,
+                decisionCostMs,
+                toolExecutionResult.getCostMs(),
+                summaryCostMs,
+                agentCostMs);
 
         return new AgentAskResponse(
                 finalAnswer,
                 true,
                 toolName,
-                toolResult
+                toolResult,
+                toolExecutionResult.getCostMs(),
+                agentCostMs,
+                traceId,
+                decisionCostMs,
+                summaryCostMs
         );
     }
 
