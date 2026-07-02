@@ -3,6 +3,7 @@ package com.example.agent.service;
 import com.example.agent.config.DeepSeekProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.ToolDecision;
+import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.dto.ToolExecutionResult;
 import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +27,8 @@ public class SimpleAgentService {
 
     private final DeepSeekProperties deepSeekProperties;
 
+    private final AgentLogService agentLogService;
+
     private final ObjectMapper objectMapper;
 
     private final ToolRegistry toolRegistry;
@@ -33,11 +37,23 @@ public class SimpleAgentService {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
         long agentStartTime = System.currentTimeMillis();
 
+        List<AgentTraceStep> steps = new ArrayList<>();
+
         log.info("Agent 请求开始，traceId={}, userMessage={}", traceId, userMessage);
 
         long decisionStartTime = System.currentTimeMillis();
         ToolDecision decision = decideTool(userMessage);
         long decisionCostMs = System.currentTimeMillis() - decisionStartTime;
+
+        steps.add(new AgentTraceStep(
+                "AI_DECISION",
+                "AI 判断是否需要调用工具",
+                true,
+                decisionCostMs,
+                userMessage,
+                toJsonSafely(decision),
+                null
+        ));
 
         log.info("Agent 工具决策完成，traceId={}, needTool={}, toolName={}, decisionCostMs={}",
                 traceId,
@@ -52,7 +68,7 @@ public class SimpleAgentService {
                     traceId,
                     agentCostMs);
 
-            return new AgentAskResponse(
+            AgentAskResponse response =  new AgentAskResponse(
                     decision.getDirectAnswer(),
                     false,
                     null,
@@ -61,8 +77,11 @@ public class SimpleAgentService {
                     agentCostMs,
                     traceId,
                     decisionCostMs,
-                    null
+                    null,
+                    steps
             );
+
+            agentLogService.saveRunLog(userMessage, response);
         }
 
         String toolName = decision.getToolName();
@@ -74,9 +93,29 @@ public class SimpleAgentService {
 
         String toolResult = toolExecutionResult.getResult();
 
+        steps.add(new AgentTraceStep(
+                "TOOL_EXECUTION",
+                "执行工具：" + toolName,
+                toolExecutionResult.getSuccess(),
+                toolExecutionResult.getCostMs(),
+                toJsonSafely(decision.getArguments()),
+                toolExecutionResult.getResult(),
+                toolExecutionResult.getErrorMessage()
+        ));
+
         long summaryStartTime = System.currentTimeMillis();
         String finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
         long summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+
+        steps.add(new AgentTraceStep(
+                "AI_SUMMARY",
+                "AI 根据工具结果总结回答",
+                true,
+                summaryCostMs,
+                toolResult,
+                finalAnswer,
+                null
+        ));
 
         long agentCostMs = System.currentTimeMillis() - agentStartTime;
 
@@ -88,7 +127,7 @@ public class SimpleAgentService {
                 summaryCostMs,
                 agentCostMs);
 
-        return new AgentAskResponse(
+        AgentAskResponse response = new AgentAskResponse(
                 finalAnswer,
                 true,
                 toolName,
@@ -97,8 +136,25 @@ public class SimpleAgentService {
                 agentCostMs,
                 traceId,
                 decisionCostMs,
-                summaryCostMs
+                summaryCostMs,
+                steps
         );
+
+        agentLogService.saveRunLog(userMessage, response);
+
+        return response;
+    }
+
+    private String toJsonSafely(Object object) {
+        if (object == null) {
+            return null;
+        }
+
+        try {
+            return objectMapper.writeValueAsString(object);
+        } catch (Exception e) {
+            return object.toString();
+        }
     }
 
     private ToolDecision decideTool(String userMessage) {
