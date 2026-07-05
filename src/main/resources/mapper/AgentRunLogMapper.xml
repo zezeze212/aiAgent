@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.agent.mapper.AgentRunLogMapper">
+
+    <insert id="insert"
+            parameterType="com.example.agent.entity.AgentRunLog"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO agent_run_log (
+        trace_id,
+        user_message,
+        answer,
+        used_tool,
+        tool_name,
+        tool_result,
+        decision_cost_ms,
+        tool_cost_ms,
+        summary_cost_ms,
+        agent_cost_ms,
+        success,
+        error_message
+        ) VALUES (
+        #{traceId},
+        #{userMessage},
+        #{answer},
+        #{usedTool},
+        #{toolName},
+        #{toolResult},
+        #{decisionCostMs},
+        #{toolCostMs},
+        #{summaryCostMs},
+        #{agentCostMs},
+        #{success},
+        #{errorMessage}
+        )
+    </insert>
+
+    <select id="selectByTraceId"
+            resultType="com.example.agent.entity.AgentRunLog">
+        SELECT
+        id,
+        trace_id,
+        user_message,
+        answer,
+        used_tool,
+        tool_name,
+        tool_result,
+        decision_cost_ms,
+        tool_cost_ms,
+        summary_cost_ms,
+        agent_cost_ms,
+        success,
+        error_message,
+        created_time
+        FROM agent_run_log
+        WHERE trace_id = #{traceId}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(1)
+        FROM agent_run_log
+    </select>
+
+    <select id="selectPage"
+            resultType="com.example.agent.entity.AgentRunLog">
+        SELECT
+        id,
+        trace_id,
+        user_message,
+        answer,
+        used_tool,
+        tool_name,
+        decision_cost_ms,
+        tool_cost_ms,
+        summary_cost_ms,
+        agent_cost_ms,
+        success,
+        error_message,
+        created_time
+        FROM agent_run_log
+        ORDER BY created_time DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(1)
+        FROM agent_run_log
+        <where>
+            <if test="toolName != null and toolName != ''">
+                AND tool_name = #{toolName}
+            </if>
+            <if test="success != null">
+                AND success = #{success}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectPageByCondition"
+            resultType="com.example.agent.entity.AgentRunLog">
+        SELECT
+        id,
+        trace_id,
+        user_message,
+        answer,
+        used_tool,
+        tool_name,
+        decision_cost_ms,
+        tool_cost_ms,
+        summary_cost_ms,
+        agent_cost_ms,
+        success,
+        error_message,
+        created_time
+        FROM agent_run_log
+        <where>
+            <if test="toolName != null and toolName != ''">
+                AND tool_name = #{toolName}
+            </if>
+            <if test="success != null">
+                AND success = #{success}
+            </if>
+        </where>
+        ORDER BY created_time DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="selectOverallStats"
+            resultType="com.example.agent.dto.AgentRunStatsResponse">
+        SELECT
+        COUNT(1) AS total,
+        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS successCount,
+        COALESCE(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END), 0) AS failedCount,
+        ROUND(AVG(decision_cost_ms), 2) AS avgDecisionCostMs,
+        ROUND(AVG(tool_cost_ms), 2) AS avgToolCostMs,
+        ROUND(AVG(summary_cost_ms), 2) AS avgSummaryCostMs,
+        ROUND(AVG(agent_cost_ms), 2) AS avgAgentCostMs
+        FROM agent_run_log
+        <where>
+            <if test="toolName != null and toolName != ''">
+                AND tool_name = #{toolName}
+            </if>
+            <if test="success != null">
+                AND success = #{success}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectToolStats"
+            resultType="com.example.agent.dto.ToolStatsItem">
+        SELECT
+        COALESCE(tool_name, 'NO_TOOL') AS toolName,
+        COUNT(1) AS runCount,
+        ROUND(AVG(agent_cost_ms), 2) AS avgAgentCostMs,
+        ROUND(AVG(tool_cost_ms), 2) AS avgToolCostMs,
+        MAX(agent_cost_ms) AS maxAgentCostMs
+        FROM agent_run_log
+        <where>
+            <if test="toolName != null and toolName != ''">
+                AND tool_name = #{toolName}
+            </if>
+            <if test="success != null">
+                AND success = #{success}
+            </if>
+        </where>
+        GROUP BY COALESCE(tool_name, 'NO_TOOL')
+        ORDER BY runCount DESC
+    </select>
+
+</mapper>

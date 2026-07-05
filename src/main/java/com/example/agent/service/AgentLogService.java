@@ -1,22 +1,24 @@
 package com.example.agent.service;
 
-import com.example.agent.dto.AgentAskResponse;
-import com.example.agent.dto.AgentRunDetailResponse;
-import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.*;
+import com.example.agent.entity.AgentRunLog;
+import com.example.agent.entity.AgentStepLog;
+import com.example.agent.mapper.AgentRunLogMapper;
+import com.example.agent.mapper.AgentStepLogMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AgentLogService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AgentRunLogMapper agentRunLogMapper;
+
+    private final AgentStepLogMapper agentStepLogMapper;
 
     public void saveRunLog(String userMessage, AgentAskResponse response) {
         if (response == null) {
@@ -28,40 +30,24 @@ public class AgentLogService {
     }
 
     private void saveAgentRun(String userMessage, AgentAskResponse response) {
-        String sql = """
-                INSERT INTO agent_run_log (
-                    trace_id,
-                    user_message,
-                    answer,
-                    used_tool,
-                    tool_name,
-                    tool_result,
-                    decision_cost_ms,
-                    tool_cost_ms,
-                    summary_cost_ms,
-                    agent_cost_ms,
-                    success,
-                    error_message
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """;
+        AgentRunLog runLog = new AgentRunLog();
 
-        jdbcTemplate.update(
-                sql,
-                response.getTraceId(),
-                userMessage,
-                response.getAnswer(),
-                Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0,
-                response.getToolName(),
-                response.getToolResult(),
-                response.getDecisionCostMs(),
-                response.getToolCostMs(),
-                response.getSummaryCostMs(),
-                response.getAgentCostMs(),
-                1,
-                null
-        );
+        runLog.setTraceId(response.getTraceId());
+        runLog.setUserMessage(userMessage);
+        runLog.setAnswer(response.getAnswer());
+        runLog.setUsedTool(Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0);
+        runLog.setToolName(response.getToolName());
+        runLog.setToolResult(response.getToolResult());
+        runLog.setDecisionCostMs(response.getDecisionCostMs());
+        runLog.setToolCostMs(response.getToolCostMs());
+        runLog.setSummaryCostMs(response.getSummaryCostMs());
+        runLog.setAgentCostMs(response.getAgentCostMs());
+        runLog.setSuccess(1);
+        runLog.setErrorMessage(null);
 
-        log.info("Agent主记录保存成功，traceId={}", response.getTraceId());
+        agentRunLogMapper.insert(runLog);
+
+        log.info("Agent主记录保存成功，traceId={}, id={}", response.getTraceId(), runLog.getId());
     }
 
     private void saveAgentSteps(String traceId, List<AgentTraceStep> steps) {
@@ -69,87 +55,136 @@ public class AgentLogService {
             return;
         }
 
-        String sql = """
-                INSERT INTO agent_step_log (
-                    trace_id,
-                    step_name,
-                    description,
-                    success,
-                    cost_ms,
-                    input_text,
-                    output_text,
-                    error_message,
-                    step_order
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """;
-
         for (int i = 0; i < steps.size(); i++) {
             AgentTraceStep step = steps.get(i);
 
-            jdbcTemplate.update(
-                    sql,
-                    traceId,
-                    step.getStepName(),
-                    step.getDescription(),
-                    Boolean.TRUE.equals(step.getSuccess()) ? 1 : 0,
-                    step.getCostMs(),
-                    step.getInput(),
-                    step.getOutput(),
-                    step.getErrorMessage(),
-                    i + 1
-            );
+            AgentStepLog stepLog = new AgentStepLog();
+            stepLog.setTraceId(traceId);
+            stepLog.setStepName(step.getStepName());
+            stepLog.setDescription(step.getDescription());
+            stepLog.setSuccess(Boolean.TRUE.equals(step.getSuccess()) ? 1 : 0);
+            stepLog.setCostMs(step.getCostMs());
+            stepLog.setInputText(step.getInput());
+            stepLog.setOutputText(step.getOutput());
+            stepLog.setErrorMessage(step.getErrorMessage());
+            stepLog.setStepOrder(i + 1);
+
+            agentStepLogMapper.insert(stepLog);
         }
 
         log.info("Agent步骤记录保存成功，traceId={}, stepCount={}", traceId, steps.size());
     }
 
+    public AgentRunPageResponse getRunPage(Integer pageNum, Integer pageSize, String toolName, Integer success) {
+        if (pageNum == null || pageNum < 1) {
+            pageNum = 1;
+        }
+
+        if (pageSize == null || pageSize < 1) {
+            pageSize = 10;
+        }
+
+        if (pageSize > 100) {
+            pageSize = 100;
+        }
+
+        if (toolName != null && toolName.isBlank()) {
+            toolName = null;
+        }
+
+        int offset = (pageNum - 1) * pageSize;
+
+        Long total = agentRunLogMapper.countByCondition(toolName, success);
+
+        List<AgentRunLog> list = agentRunLogMapper.selectPageByCondition(
+                offset,
+                pageSize,
+                toolName,
+                success
+        );
+
+        fillAnswerSummaryForList(list);
+
+        return new AgentRunPageResponse(
+                pageNum,
+                pageSize,
+                total == null ? 0L : total,
+                list
+        );
+    }
+
+    private void fillAnswerSummaryForList(List<AgentRunLog> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+
+        for (AgentRunLog item : list) {
+            item.setAnswerSummary(buildSummary(item.getAnswer(), 120));
+
+            // 列表页不返回完整 answer，避免内容太长
+            item.setAnswer(null);
+        }
+    }
+
+    private String buildSummary(String text, int maxLength) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+
+        String cleanText = text
+                .replace("\r", "")
+                .replace("\n", " ")
+                .replace("\\n", " ")
+                .trim();
+
+        if (cleanText.length() <= maxLength) {
+            return cleanText;
+        }
+
+        return cleanText.substring(0, maxLength) + "...";
+    }
+
     public AgentRunDetailResponse getRunDetail(String traceId) {
-        String runSql = """
-            SELECT
-                id,
-                trace_id,
-                user_message,
-                answer,
-                used_tool,
-                tool_name,
-                tool_result,
-                decision_cost_ms,
-                tool_cost_ms,
-                summary_cost_ms,
-                agent_cost_ms,
-                success,
-                error_message,
-                created_time
-            FROM agent_run_log
-            WHERE trace_id = ?
-            """;
+        AgentRunLog run = agentRunLogMapper.selectByTraceId(traceId);
 
-        List<Map<String, Object>> runs = jdbcTemplate.queryForList(runSql, traceId);
-
-        if (runs.isEmpty()) {
+        if (run == null) {
             return new AgentRunDetailResponse(null, List.of());
         }
 
-        String stepSql = """
-            SELECT
-                id,
-                trace_id,
-                step_name,
-                description,
-                success,
-                cost_ms,
-                input_text,
-                output_text,
-                error_message,
-                step_order,
-                created_time
-            FROM agent_step_log
-            WHERE trace_id = ?
-            ORDER BY step_order ASC
-            """;
+        List<AgentStepLog> steps = agentStepLogMapper.selectByTraceId(traceId);
 
-        List<Map<String, Object>> steps = jdbcTemplate.queryForList(stepSql, traceId);
+        return new AgentRunDetailResponse(run, steps);
+    }
 
-        return new AgentRunDetailResponse(runs.get(0), steps);
+    public AgentRunStatsResponse getRunStats(String toolName, Integer success) {
+        if (toolName != null && toolName.isBlank()) {
+            toolName = null;
+        }
+
+        AgentRunStatsResponse stats = agentRunLogMapper.selectOverallStats(toolName, success);
+
+        if (stats == null) {
+            stats = new AgentRunStatsResponse();
+            stats.setTotal(0L);
+            stats.setSuccessCount(0L);
+            stats.setFailedCount(0L);
+            stats.setSuccessRate(0.0);
+            stats.setToolStats(List.of());
+            return stats;
+        }
+
+        Long total = stats.getTotal() == null ? 0L : stats.getTotal();
+        Long successCount = stats.getSuccessCount() == null ? 0L : stats.getSuccessCount();
+
+        if (total == 0) {
+            stats.setSuccessRate(0.0);
+        } else {
+            double successRate = successCount * 100.0 / total;
+            stats.setSuccessRate(Math.round(successRate * 100.0) / 100.0);
+        }
+
+        stats.setToolStats(agentRunLogMapper.selectToolStats(toolName, success));
+
+        return stats;
     }
 }

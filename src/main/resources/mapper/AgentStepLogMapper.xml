@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.agent.mapper.AgentStepLogMapper">
+
+    <insert id="insert"
+            parameterType="com.example.agent.entity.AgentStepLog"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO agent_step_log (
+        trace_id,
+        step_name,
+        description,
+        success,
+        cost_ms,
+        input_text,
+        output_text,
+        error_message,
+        step_order
+        ) VALUES (
+        #{traceId},
+        #{stepName},
+        #{description},
+        #{success},
+        #{costMs},
+        #{inputText},
+        #{outputText},
+        #{errorMessage},
+        #{stepOrder}
+        )
+    </insert>
+
+    <select id="selectByTraceId"
+            resultType="com.example.agent.entity.AgentStepLog">
+        SELECT
+        id,
+        trace_id,
+        step_name,
+        description,
+        success,
+        cost_ms,
+        input_text,
+        output_text,
+        error_message,
+        step_order,
+        created_time
+        FROM agent_step_log
+        WHERE trace_id = #{traceId}
+        ORDER BY step_order ASC
+    </select>
+
+</mapper>

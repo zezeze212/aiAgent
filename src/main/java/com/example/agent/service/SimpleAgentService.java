@@ -103,9 +103,37 @@ public class SimpleAgentService {
                 toolExecutionResult.getErrorMessage()
         ));
 
-        long summaryStartTime = System.currentTimeMillis();
-        String finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
-        long summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+        String finalAnswer;
+        Long summaryCostMs;
+
+        if (shouldSkipSummary(toolName)) {
+            finalAnswer = toolResult;
+            summaryCostMs = 0L;
+
+            steps.add(new AgentTraceStep(
+                    "AI_SUMMARY",
+                    "工具结果已经是最终回答，跳过 AI 总结",
+                    true,
+                    0L,
+                    toolResult,
+                    finalAnswer,
+                    null
+            ));
+        } else {
+            long summaryStartTime = System.currentTimeMillis();
+            finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
+            summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+
+            steps.add(new AgentTraceStep(
+                    "AI_SUMMARY",
+                    "AI 根据工具结果总结回答",
+                    true,
+                    summaryCostMs,
+                    toolResult,
+                    finalAnswer,
+                    null
+            ));
+        }
 
         steps.add(new AgentTraceStep(
                 "AI_SUMMARY",
@@ -216,6 +244,9 @@ public class SimpleAgentService {
         }
     }
 
+    private boolean shouldSkipSummary(String toolName) {
+        return "analyzeSqlErrorWithSchema".equals(toolName);
+    }
 
     private String summarizeWithToolResult(String userMessage, String toolName, String toolResult) {
         return callDeepSeek(List.of(

@@ -1,9 +1,6 @@
 package com.example.agent.controller;
 
-import com.example.agent.dto.AgentAskRequest;
-import com.example.agent.dto.AgentAskResponse;
-import com.example.agent.dto.AgentRunDetailResponse;
-import com.example.agent.dto.ToolInfo;
+import com.example.agent.dto.*;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.service.SimpleAgentService;
 import com.example.agent.tool.ToolRegistry;
@@ -11,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/agent")
@@ -31,6 +29,24 @@ public class AgentController {
     @GetMapping("/tools")
     public List<ToolInfo> listTools() {
         return toolRegistry.listTools();
+    }
+
+    @GetMapping("/runs")
+    public AgentRunPageResponse getRunPage(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String toolName,
+            @RequestParam(required = false) Integer success
+    ) {
+        return agentLogService.getRunPage(pageNum, pageSize, toolName, success);
+    }
+
+    @GetMapping("/runs/stats")
+    public AgentRunStatsResponse getRunStats(
+            @RequestParam(required = false) String toolName,
+            @RequestParam(required = false) Integer success
+    ) {
+        return agentLogService.getRunStats(toolName, success);
     }
 
     @GetMapping("/runs/{traceId}")
