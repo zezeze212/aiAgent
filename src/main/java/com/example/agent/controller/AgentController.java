@@ -5,10 +5,11 @@ import com.example.agent.service.AgentLogService;
 import com.example.agent.service.SimpleAgentService;
 import com.example.agent.tool.ToolRegistry;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/agent")
@@ -36,17 +37,37 @@ public class AgentController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) String toolName,
-            @RequestParam(required = false) Integer success
+            @RequestParam(required = false) Integer success,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime
     ) {
-        return agentLogService.getRunPage(pageNum, pageSize, toolName, success);
+        return agentLogService.getRunPage(
+                pageNum,
+                pageSize,
+                toolName,
+                success,
+                startTime,
+                endTime
+        );
     }
 
     @GetMapping("/runs/stats")
     public AgentRunStatsResponse getRunStats(
             @RequestParam(required = false) String toolName,
-            @RequestParam(required = false) Integer success
+            @RequestParam(required = false) Integer success,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime
     ) {
-        return agentLogService.getRunStats(toolName, success);
+        return agentLogService.getRunStats(
+                toolName,
+                success,
+                startTime,
+                endTime
+        );
     }
 
     @GetMapping("/runs/{traceId}")

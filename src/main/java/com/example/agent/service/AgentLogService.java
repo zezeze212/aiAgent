@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -75,7 +76,14 @@ public class AgentLogService {
         log.info("Agent步骤记录保存成功，traceId={}, stepCount={}", traceId, steps.size());
     }
 
-    public AgentRunPageResponse getRunPage(Integer pageNum, Integer pageSize, String toolName, Integer success) {
+    public AgentRunPageResponse getRunPage(
+            Integer pageNum,
+            Integer pageSize,
+            String toolName,
+            Integer success,
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    ) {
         if (pageNum == null || pageNum < 1) {
             pageNum = 1;
         }
@@ -94,13 +102,20 @@ public class AgentLogService {
 
         int offset = (pageNum - 1) * pageSize;
 
-        Long total = agentRunLogMapper.countByCondition(toolName, success);
+        Long total = agentRunLogMapper.countByCondition(
+                toolName,
+                success,
+                startTime,
+                endTime
+        );
 
         List<AgentRunLog> list = agentRunLogMapper.selectPageByCondition(
                 offset,
                 pageSize,
                 toolName,
-                success
+                success,
+                startTime,
+                endTime
         );
 
         fillAnswerSummaryForList(list);
@@ -156,12 +171,22 @@ public class AgentLogService {
         return new AgentRunDetailResponse(run, steps);
     }
 
-    public AgentRunStatsResponse getRunStats(String toolName, Integer success) {
+    public AgentRunStatsResponse getRunStats(
+            String toolName,
+            Integer success,
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    ) {
         if (toolName != null && toolName.isBlank()) {
             toolName = null;
         }
 
-        AgentRunStatsResponse stats = agentRunLogMapper.selectOverallStats(toolName, success);
+        AgentRunStatsResponse stats = agentRunLogMapper.selectOverallStats(
+                toolName,
+                success,
+                startTime,
+                endTime
+        );
 
         if (stats == null) {
             stats = new AgentRunStatsResponse();
@@ -183,7 +208,12 @@ public class AgentLogService {
             stats.setSuccessRate(Math.round(successRate * 100.0) / 100.0);
         }
 
-        stats.setToolStats(agentRunLogMapper.selectToolStats(toolName, success));
+        stats.setToolStats(agentRunLogMapper.selectToolStats(
+                toolName,
+                success,
+                startTime,
+                endTime
+        ));
 
         return stats;
     }

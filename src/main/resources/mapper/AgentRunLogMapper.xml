@@ -95,6 +95,12 @@
             <if test="success != null">
                 AND success = #{success}
             </if>
+            <if test="startTime != null">
+                AND created_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND created_time &lt;= #{endTime}
+            </if>
         </where>
     </select>
 
@@ -122,6 +128,12 @@
             <if test="success != null">
                 AND success = #{success}
             </if>
+            <if test="startTime != null">
+                AND created_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND created_time &lt;= #{endTime}
+            </if>
         </where>
         ORDER BY created_time DESC
         LIMIT #{pageSize} OFFSET #{offset}
@@ -145,6 +157,12 @@
             <if test="success != null">
                 AND success = #{success}
             </if>
+            <if test="startTime != null">
+                AND created_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND created_time &lt;= #{endTime}
+            </if>
         </where>
     </select>
 
@@ -163,6 +181,12 @@
             </if>
             <if test="success != null">
                 AND success = #{success}
+            </if>
+            <if test="startTime != null">
+                AND created_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND created_time &lt;= #{endTime}
             </if>
         </where>
         GROUP BY COALESCE(tool_name, 'NO_TOOL')

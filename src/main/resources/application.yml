@@ -1,6 +1,18 @@
 server:
   port: 8088
 
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: a1016695608
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}
   base-url: https://api.deepseek.com
