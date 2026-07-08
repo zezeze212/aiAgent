@@ -415,66 +415,54 @@ MyBatis 当前负责：
 
 ---
 
-## 十一、当前项目亮点
 
-### 1. 工具注册中心
+## 十一、统一返回结构与全局异常处理
 
-通过 `AgentTool` 接口和 `ToolRegistry` 实现工具统一注册和调用。
+项目已统一接口响应结构，所有主要接口返回 `Result<T>`，包含 `code`、`message`、`data` 三个字段。
 
-新增工具时只需要实现 `AgentTool` 接口，不需要修改 Agent 主流程，扩展性较好。
+成功响应示例：
 
----
+```md
+{
+  "code": 200,
+  "message": "success",
+  "data": {}
+}
+```
 
-### 2. 后端排障场景结合真实数据库
+失败响应示例：
 
-`getTableSchema` 和 `analyzeSqlErrorWithSchema` 能结合真实表结构辅助分析 SQL/MyBatis 报错，不只是单纯让大模型猜测原因。
+```json
+{
+  "code": 400,
+  "message": "message 不能为空",
+  "data": null
+}
+```
 
----
+项目通过 `@RestControllerAdvice` 实现全局异常处理，统一捕获业务异常、参数异常和系统异常，避免接口直接暴露 Java 异常栈。
 
-### 3. Agent 全链路追踪
+本次改造接口包括：
 
-通过 `traceId`、`AgentTraceStep` 和多阶段耗时字段，完整记录一次 Agent 请求的执行过程。
+- `POST /agent/ask`
+- `GET /agent/tools`
+- `GET /agent/runs`
+- `GET /agent/runs/stats`
+- `GET /agent/runs/{traceId}`
+- `POST /ai/chat`
+- `POST /ai/analyze-error`
+- `POST /ai/analyze-error/raw`
 
----
+同时增加基础参数校验：
 
-### 4. 日志落库和运行监控
-
-支持 Agent 调用记录落库、分页查询、详情查询、条件筛选和统计分析，可以定位慢工具、查看成功率和排查异常调用。
-
----
-
-## 十二、当前已完成能力
-
-- AI 普通问答
-- Java 报错分析
-- Tool Calling
-- ToolRegistry 工具注册中心
-- `getCurrentTime` 工具
-- `analyzeJavaError` 工具
-- `getTableSchema` 表结构查询工具
-- 表名模糊匹配推荐
-- `analyzeSqlErrorWithSchema` 组合排障工具
-- `traceId` 链路追踪
-- `AgentTraceStep` 步骤明细
-- `decisionCostMs` / `toolCostMs` / `summaryCostMs` / `agentCostMs` 耗时统计
-- Agent 主记录落库
-- Agent 步骤明细落库
-- MyBatis 日志模块
-- 分页查询
-- `toolName` / `success` 筛选
-- `startTime` / `endTime` 时间范围筛选
-- `answerSummary` 摘要展示
-- `traceId` 详情查询
-- Agent 运行统计
-- 按工具维度统计耗时和调用次数
-
----
+- `message` 不能为空
+- `log` 不能为空
+- `pageNum` 必须大于 0
+- `pageSize` 必须大于 0 且不能超过 100
+- `success` 只能是 0 或 1
+- `startTime` 不能晚于 `endTime
 
 ## 十三、后续计划
-
-1. 增加统一返回结构 `Result<T>`
-2. 增加全局异常处理 `GlobalExceptionHandler`
-3. 增加更多后端排障工具，例如 SQL 生成、接口 Body 生成、Mapper XML 分析
-4. 增加 RAG 知识库能力
-5. 部署到腾讯云服务器，支持远程演示
-6. 整理架构图、流程图和接口文档
+增加更多后端排障工具，例如 SQL 生成、接口 Body 生成、Mapper XML 分析 增加 RAG 知识库能力
+部署到腾讯云服务器，支持远程演示
+整理架构图、流程图和接口文档

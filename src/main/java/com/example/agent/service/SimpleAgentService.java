@@ -68,7 +68,7 @@ public class SimpleAgentService {
                     traceId,
                     agentCostMs);
 
-            AgentAskResponse response =  new AgentAskResponse(
+            AgentAskResponse response = new AgentAskResponse(
                     decision.getDirectAnswer(),
                     false,
                     null,
@@ -82,6 +82,8 @@ public class SimpleAgentService {
             );
 
             agentLogService.saveRunLog(userMessage, response);
+
+            return response;
         }
 
         String toolName = decision.getToolName();
@@ -134,16 +136,6 @@ public class SimpleAgentService {
                     null
             ));
         }
-
-        steps.add(new AgentTraceStep(
-                "AI_SUMMARY",
-                "AI 根据工具结果总结回答",
-                true,
-                summaryCostMs,
-                toolResult,
-                finalAnswer,
-                null
-        ));
 
         long agentCostMs = System.currentTimeMillis() - agentStartTime;
 
