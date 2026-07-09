@@ -83,6 +83,41 @@ public class AiChatService {
         );
     }
 
+    public String analyzeMapperXml(String log, String mapperXml) {
+        String prompt = """
+            你是一个 Java 后端排障助手，擅长分析 MyBatis Mapper XML 问题。
+
+            请根据用户提供的报错日志和 Mapper XML 内容，分析可能的问题。
+
+            要求：
+            1. 重点检查 SQL 字段名、resultMap 映射、参数绑定、where 条件、表名和别名。
+            2. 如果发现字段名可能不存在，请明确指出。
+            3. 如果发现 resultMap 或 #{参数} 可能不匹配，请明确指出。
+            4. 输出要简洁，适合 Java 后端开发者快速定位问题。
+            5. 按下面格式输出：
+
+            【问题类型】
+            xxx
+
+            【可能原因】
+            xxx
+
+            【排查建议】
+            xxx
+
+            【建议修改】
+            xxx
+
+            报错日志：
+            %s
+
+            Mapper XML：
+            %s
+            """.formatted(log, mapperXml);
+
+        return chat(prompt);
+    }
+
     private String callDeepSeek(List<Map<String, String>> messages) {
         String requestId = UUID.randomUUID().toString().substring(0, 8);
 

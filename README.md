@@ -462,6 +462,27 @@ MyBatis 当前负责：
 - `success` 只能是 0 或 1
 - `startTime` 不能晚于 `endTime
 
+
+### analyzeMapperXml
+
+用于分析 MyBatis Mapper XML 中的参数绑定、resultMap、字段映射和动态 SQL 问题。
+
+适用场景：
+
+- `#{}` 参数名和 Java 方法参数不一致
+- `resultMap` 中 `column/property` 映射错误
+- 动态 SQL 的 `if/test/foreach` 条件错误
+- Mapper XML 查询字段和实体字段对应不上
+
+示例：
+
+Java 方法参数为 `toolName`，但 XML 中使用 `#{tool}`，会导致参数无法正确绑定。工具会建议将 `#{tool}` 改成 `#{toolName}`，或在 Java 方法参数上添加 `@Param("tool")`。
+
+实体类字段为 `traceId`，但 resultMap 中写成 `property="trace"`，会导致 `trace_id` 无法映射到 `traceId`。工具会建议改为：
+```
+<result column="trace_id" property="traceId"/>
+```
+
 ## 十三、后续计划
 增加更多后端排障工具，例如 SQL 生成、接口 Body 生成、Mapper XML 分析 增加 RAG 知识库能力
 部署到腾讯云服务器，支持远程演示

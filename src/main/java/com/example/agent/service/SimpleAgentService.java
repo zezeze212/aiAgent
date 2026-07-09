@@ -237,9 +237,8 @@ public class SimpleAgentService {
     }
 
     private boolean shouldSkipSummary(String toolName) {
-        return "analyzeSqlErrorWithSchema".equals(toolName);
+        return "analyzeSqlErrorWithSchema".equals(toolName) || "analyzeMapperXml".equals(toolName);
     }
-
     private String summarizeWithToolResult(String userMessage, String toolName, String toolResult) {
         return callDeepSeek(List.of(
                 Map.of(
