@@ -108,19 +108,30 @@ public class SimpleAgentService {
         String finalAnswer;
         Long summaryCostMs;
 
-        long summaryStartTime = System.currentTimeMillis();
-        finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
-        summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+        if (!Boolean.TRUE.equals(toolExecutionResult.getSuccess())) {
+            finalAnswer = toolExecutionResult.getResult();
+            summaryCostMs = 0L;
+        } else {
+            long summaryStartTime = System.currentTimeMillis();
 
-        steps.add(new AgentTraceStep(
-                "AI_SUMMARY",
-                "AI 根据工具结果总结回答",
-                true,
-                summaryCostMs,
-                toolResult,
-                finalAnswer,
-                null
-        ));
+            finalAnswer = summarizeWithToolResult(
+                    userMessage,
+                    toolName,
+                    toolResult
+            );
+
+            summaryCostMs = System.currentTimeMillis() - summaryStartTime;
+
+            steps.add(new AgentTraceStep(
+                    "AI_SUMMARY",
+                    "AI 根据工具证据生成最终回答",
+                    true,
+                    summaryCostMs,
+                    toolResult,
+                    finalAnswer,
+                    null
+            ));
+        }
 
         long agentCostMs = System.currentTimeMillis() - agentStartTime;
 

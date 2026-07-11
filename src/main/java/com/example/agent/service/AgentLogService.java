@@ -43,8 +43,22 @@ public class AgentLogService {
         runLog.setToolCostMs(response.getToolCostMs());
         runLog.setSummaryCostMs(response.getSummaryCostMs());
         runLog.setAgentCostMs(response.getAgentCostMs());
-        runLog.setSuccess(1);
-        runLog.setErrorMessage(null);
+
+        int runSuccess = 1;
+        String runErrorMessage = null;
+        List<AgentTraceStep> steps = response.getSteps();
+
+        if (steps != null) {
+            for (AgentTraceStep step : steps) {
+                if (!Boolean.TRUE.equals(step.getSuccess())) {
+                    runSuccess = 0;
+                    runErrorMessage = step.getErrorMessage();
+                    break;
+                }
+            }
+        }
+        runLog.setSuccess(runSuccess);
+        runLog.setErrorMessage(runErrorMessage);
 
         agentRunLogMapper.insert(runLog);
 
