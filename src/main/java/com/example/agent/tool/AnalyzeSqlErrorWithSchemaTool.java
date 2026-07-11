@@ -47,17 +47,23 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
         String tableName = getStringArg(arguments, "tableName");
 
         if (log == null || log.isBlank()) {
-            return "缺少参数 log，无法分析 SQL 报错。";
+            throw new IllegalArgumentException(
+                    "缺少参数 log，无法分析 SQL 报错。"
+            );
         }
 
         if (tableName == null || tableName.isBlank()) {
-            return "缺少参数 tableName，无法结合表结构分析 SQL 报错。";
+            throw new IllegalArgumentException(
+                    "缺少参数 tableName，无法结合表结构分析 SQL 报错。"
+            );
         }
 
         tableName = tableName.trim();
 
         if (!isSafeTableName(tableName)) {
-            return "表名格式不合法，只允许字母、数字和下划线，tableName=" + tableName;
+            throw new IllegalArgumentException(
+                    "表名格式不合法，只允许字母、数字和下划线，tableName=" + tableName
+            );
         }
 
         SqlErrorEvidence evidence = sqlErrorEvidenceExtractor.extract(log);
