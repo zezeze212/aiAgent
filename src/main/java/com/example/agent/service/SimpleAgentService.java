@@ -108,34 +108,19 @@ public class SimpleAgentService {
         String finalAnswer;
         Long summaryCostMs;
 
-        if (shouldSkipSummary(toolName)) {
-            finalAnswer = toolResult;
-            summaryCostMs = 0L;
+        long summaryStartTime = System.currentTimeMillis();
+        finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
+        summaryCostMs = System.currentTimeMillis() - summaryStartTime;
 
-            steps.add(new AgentTraceStep(
-                    "AI_SUMMARY",
-                    "工具结果已经是最终回答，跳过 AI 总结",
-                    true,
-                    0L,
-                    toolResult,
-                    finalAnswer,
-                    null
-            ));
-        } else {
-            long summaryStartTime = System.currentTimeMillis();
-            finalAnswer = summarizeWithToolResult(userMessage, toolName, toolResult);
-            summaryCostMs = System.currentTimeMillis() - summaryStartTime;
-
-            steps.add(new AgentTraceStep(
-                    "AI_SUMMARY",
-                    "AI 根据工具结果总结回答",
-                    true,
-                    summaryCostMs,
-                    toolResult,
-                    finalAnswer,
-                    null
-            ));
-        }
+        steps.add(new AgentTraceStep(
+                "AI_SUMMARY",
+                "AI 根据工具结果总结回答",
+                true,
+                summaryCostMs,
+                toolResult,
+                finalAnswer,
+                null
+        ));
 
         long agentCostMs = System.currentTimeMillis() - agentStartTime;
 
@@ -236,18 +221,26 @@ public class SimpleAgentService {
         }
     }
 
-    private boolean shouldSkipSummary(String toolName) {
-        return "analyzeSqlErrorWithSchema".equals(toolName) || "analyzeMapperXml".equals(toolName);
-    }
+
     private String summarizeWithToolResult(String userMessage, String toolName, String toolResult) {
         return callDeepSeek(List.of(
                 Map.of(
                         "role", "system",
                         "content", """
-                                你是一个 Java 后端 Agent 助手。
-                                用户提出了一个问题，后端工具已经执行完成。
-                                请根据工具执行结果，用自然语言回答用户。
-                                回答要简洁清楚。
+                                你是一个 Java 后端排障 Agent。
+                                工具返回的是排障证据，不是最终答案。
+                                
+                                请结合用户原始问题和工具证据生成最终排障结论。
+                                
+                                要求：
+                                1. 明确说明根因。
+                                2. 引用工具返回的字段、表结构等真实证据。
+                                3. 不要编造工具结果中不存在的信息。
+                                4. 给出直接可执行的修改建议。
+                                5. 回答简洁清楚。
+                                6. 不得根据字段名猜测字段类型、长度、默认值和注释。
+                                7. 在无法确认业务设计时，不要直接生成 ALTER TABLE、UPDATE、DELETE 等修改数据或表结构的 SQL。
+                                8. 字段不存在时，应优先建议检查 Mapper XML、实体类和数据库版本；只有用户明确确认需要新增字段并提供字段定义后，才能生成 DDL。
                                 """
                 ),
                 Map.of(
