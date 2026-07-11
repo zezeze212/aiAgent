@@ -1,6 +1,8 @@
 package com.example.agent.tool;
 
 import com.example.agent.service.AiChatService;
+import com.example.agent.sql.SqlErrorEvidence;
+import com.example.agent.sql.SqlErrorEvidenceExtractor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,6 +20,8 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
     private final ObjectMapper objectMapper;
 
     private final AiChatService aiChatService;
+
+    private final SqlErrorEvidenceExtractor sqlErrorEvidenceExtractor;
 
     @Override
     public String name() {
@@ -44,6 +48,9 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
         String log = getStringArg(arguments, "log");
         String tableName = getStringArg(arguments, "tableName");
 
+        SqlErrorEvidence evidence = sqlErrorEvidenceExtractor.extract(log);
+        String evidenceJson = toJsonSafely(evidence);
+
         if (log == null || log.isBlank()) {
             return "缺少参数 log，无法分析 SQL 报错。";
         }
@@ -67,28 +74,30 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
         String schemaJson = toJsonSafely(columns);
 
         String prompt = """
-                你是一个 Java 后端排障助手，请结合 SQL/MyBatis 报错日志和数据库表结构，给出简洁明确的排障结论。
+                你是一个 Java 后端排障助手，请结合 SQL/MyBatis 报错日志、结构化错误证据和数据库表结构，给出简洁明确的排障结论。
                 
                 输出格式固定为：
                 
                 【结论】
                 用 1～2 句话说明根因。
                 
-                【字段校验】
-                明确说明报错字段是否存在于表结构中。
+                【证据】
+                说明 Java 工具提取到的 errorType、字段名、表名、唯一键或参数名等关键信息。
+                
+                【表结构判断】
+                如果提供了表结构，请结合表结构说明字段或表是否匹配。
                 
                 【可能位置】
-                简要列出最可能出问题的位置，例如 mapper.xml、实体类字段、@TableField、手写 SQL、resultMap。
+                简要列出最可能出问题的位置，例如 mapper.xml、实体类字段、@TableField、手写 SQL、resultMap、唯一索引、入参对象。
                 
                 【修复建议】
                 给出 2～3 条最直接的修复方式。
                 
                 要求：
                 - 回答控制在 300 字以内
-                - 不要重复粘贴完整表结构
-                - 不要输出过长解释
+                - 优先相信 Java 工具提取出的结构化证据
                 - 不要编造表中不存在的字段
-                - 如果报错字段不在表结构里，要明确指出
+                - 如果证据不足，要明确说明还需要补充 SQL、Mapper XML 或表结构
                 
                 【报错日志】
                 %s
@@ -96,9 +105,12 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
                 【表名】
                 %s
                 
+                【Java 结构化错误证据 JSON】
+                %s
+                
                 【表结构 JSON】
                 %s
-                """.formatted(log, tableName, schemaJson);
+                """.formatted(log, tableName, evidenceJson, schemaJson);
 
         return aiChatService.chat(prompt);
     }

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@Component
+// @Component
 @RequiredArgsConstructor
 public class AnalyzeMapperXmlTool implements AgentTool {
 
