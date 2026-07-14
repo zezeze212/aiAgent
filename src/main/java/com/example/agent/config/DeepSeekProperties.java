@@ -14,4 +14,6 @@ public class DeepSeekProperties {
     private String baseUrl;
 
     private String model;
+
+    private long timeoutMs = 30_000L;
 }

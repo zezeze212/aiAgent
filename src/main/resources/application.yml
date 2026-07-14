@@ -17,3 +17,7 @@ deepseek:
   api-key: ${DEEPSEEK_API_KEY}
   base-url: https://api.deepseek.com
   model: deepseek-chat
+  timeout-ms: 30000
+
+agent:
+  max-execution-time-ms: 120000
