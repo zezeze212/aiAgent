@@ -55,7 +55,7 @@ public class AgentOrchestrator {
                 return finishWithGuardFailure(context, timeoutViolation);
             }
 
-            // 获取AI决策结果和耗时
+            // 获取AI决策结果和耗时、耗时保护
             TimedDecision timedDecision = decideWithTiming(context.messages);
             if (!timedDecision.success()) {
                 return finishWithDecisionFailure(context, timedDecision);
@@ -338,7 +338,7 @@ public class AgentOrchestrator {
                 finalAnswer,
                 context.usedTool,
                 context.lastToolName,
-                context.lastToolResult,
+                parseJsonIfPossible(context.lastToolResult),
                 toolCostMs,
                 agentCostMs,
                 context.traceId,
@@ -346,6 +346,18 @@ public class AgentOrchestrator {
                 summaryCostMs,
                 context.steps
         );
+    }
+
+    private Object parseJsonIfPossible(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+
+        try {
+            return objectMapper.readValue(value, Object.class);
+        } catch (Exception e) {
+            return value;
+        }
     }
 
     private String buildToolCallSignature(String toolName, Map<String, Object> arguments) {

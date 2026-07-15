@@ -17,7 +17,7 @@ public class AgentAskResponse {
 
     private String toolName;
 
-    private String toolResult;
+    private Object toolResult;
 
     /**
      * 工具执行耗时，单位毫秒

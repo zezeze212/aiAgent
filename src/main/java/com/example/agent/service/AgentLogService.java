@@ -5,6 +5,7 @@ import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,8 @@ public class AgentLogService {
     private final AgentRunLogMapper agentRunLogMapper;
 
     private final AgentStepLogMapper agentStepLogMapper;
+
+    private final ObjectMapper objectMapper;
 
     public void saveRunLog(String userMessage, AgentAskResponse response) {
         if (response == null) {
@@ -38,7 +41,7 @@ public class AgentLogService {
         runLog.setAnswer(response.getAnswer());
         runLog.setUsedTool(Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0);
         runLog.setToolName(response.getToolName());
-        runLog.setToolResult(response.getToolResult());
+        runLog.setToolResult(serializeToolResult(response.getToolResult()));
         runLog.setDecisionCostMs(response.getDecisionCostMs());
         runLog.setToolCostMs(response.getToolCostMs());
         runLog.setSummaryCostMs(response.getSummaryCostMs());
@@ -63,6 +66,23 @@ public class AgentLogService {
         agentRunLogMapper.insert(runLog);
 
         log.info("Agent主记录保存成功，traceId={}, id={}", response.getTraceId(), runLog.getId());
+    }
+
+    private String serializeToolResult(Object toolResult) {
+        if (toolResult == null) {
+            return null;
+        }
+
+        if (toolResult instanceof String text) {
+            return text;
+        }
+
+        try {
+            return objectMapper.writeValueAsString(toolResult);
+        } catch (Exception e) {
+            log.warn("Agent 工具结果序列化失败", e);
+            return String.valueOf(toolResult);
+        }
     }
 
     private void saveAgentSteps(String traceId, List<AgentTraceStep> steps) {
