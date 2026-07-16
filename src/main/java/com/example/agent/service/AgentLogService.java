@@ -201,8 +201,32 @@ public class AgentLogService {
         }
 
         List<AgentStepLog> steps = agentStepLogMapper.selectByTraceId(traceId);
+        fillStepViewFields(steps);
 
         return new AgentRunDetailResponse(run, steps);
+    }
+
+    private void fillStepViewFields(List<AgentStepLog> steps) {
+        if (steps == null) {
+            return;
+        }
+
+        for (AgentStepLog step : steps) {
+            step.setInputView(parseJsonIfPossible(step.getInputText()));
+            step.setOutputView(parseJsonIfPossible(step.getOutputText()));
+        }
+    }
+
+    private Object parseJsonIfPossible(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+
+        try {
+            return objectMapper.readValue(value, Object.class);
+        } catch (Exception e) {
+            return value;
+        }
     }
 
     public AgentRunStatsResponse getRunStats(

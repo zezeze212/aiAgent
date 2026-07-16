@@ -40,7 +40,35 @@ public class AgentTraceStep {
     private String output;
 
     /**
+     * 步骤输入
+     */
+    private Object inputView;
+
+    /**
+     * 步骤输出
+     */
+    private Object outputView;
+
+    /**
      * 失败原因
      */
     private String errorMessage;
+
+    public AgentTraceStep(
+            String stepName,
+            String description,
+            Boolean success,
+            Long costMs,
+            String input,
+            String output,
+            String errorMessage
+    ) {
+        this.stepName = stepName;
+        this.description = description;
+        this.success = success;
+        this.costMs = costMs;
+        this.input = input;
+        this.output = output;
+        this.errorMessage = errorMessage;
+    }
 }

@@ -344,7 +344,7 @@ public class AgentOrchestrator {
                 context.traceId,
                 context.totalDecisionCostMs,
                 summaryCostMs,
-                context.steps
+                buildResponseSteps(context.steps)
         );
     }
 
@@ -358,6 +358,19 @@ public class AgentOrchestrator {
         } catch (Exception e) {
             return value;
         }
+    }
+
+    private List<AgentTraceStep> buildResponseSteps(List<AgentTraceStep> steps) {
+        if (steps == null) {
+            return null;
+        }
+
+        for (AgentTraceStep step : steps) {
+            step.setInputView(parseJsonIfPossible(step.getInput()));
+            step.setOutputView(parseJsonIfPossible(step.getOutput()));
+        }
+
+        return steps;
     }
 
     private String buildToolCallSignature(String toolName, Map<String, Object> arguments) {
