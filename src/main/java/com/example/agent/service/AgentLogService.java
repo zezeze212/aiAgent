@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -201,21 +202,39 @@ public class AgentLogService {
         }
 
         List<AgentStepLog> steps = agentStepLogMapper.selectByTraceId(traceId);
-        fillStepViewFields(steps);
 
-        return new AgentRunDetailResponse(run, steps);
+        return new AgentRunDetailResponse(run, buildStepResponses(steps));
     }
 
-    private void fillStepViewFields(List<AgentStepLog> steps) {
+    private List<AgentTraceStepResponse> buildStepResponses(List<AgentStepLog> steps) {
         if (steps == null) {
-            return;
+            return null;
         }
+
+        List<AgentTraceStepResponse> responses = new ArrayList<>();
 
         for (AgentStepLog step : steps) {
-            step.setInputView(parseJsonIfPossible(step.getInputText()));
-            step.setOutputView(parseJsonIfPossible(step.getOutputText()));
+            responses.add(buildStepResponse(step));
         }
+
+        return responses;
     }
+
+    private AgentTraceStepResponse buildStepResponse(AgentStepLog step) {
+        return new AgentTraceStepResponse(
+                step.getStepOrder(),
+                step.getStepName(),
+                step.getDescription(),
+                Integer.valueOf(1).equals(step.getSuccess()),
+                step.getCostMs(),
+                step.getInputText(),
+                step.getOutputText(),
+                parseJsonIfPossible(step.getInputText()),
+                parseJsonIfPossible(step.getOutputText()),
+                step.getErrorMessage()
+        );
+    }
+
 
     private Object parseJsonIfPossible(String value) {
         if (value == null || value.isBlank()) {

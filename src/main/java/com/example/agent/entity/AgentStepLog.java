@@ -23,10 +23,6 @@ public class AgentStepLog {
 
     private String outputText;
 
-    private Object inputView;
-
-    private Object outputView;
-
     private String errorMessage;
 
     private Integer stepOrder;

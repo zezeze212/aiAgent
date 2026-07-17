@@ -15,5 +15,5 @@ public class AgentRunDetailResponse {
 
     private AgentRunLog run;
 
-    private List<AgentStepLog> steps;
+    private List<AgentTraceStepResponse> steps;
 }
