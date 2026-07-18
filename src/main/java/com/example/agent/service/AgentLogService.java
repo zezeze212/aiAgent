@@ -1,16 +1,11 @@
 package com.example.agent.service;
 
-import com.example.agent.dto.AgentAskResponse;
-import com.example.agent.dto.AgentRunDetailResponse;
-import com.example.agent.dto.AgentRunPageResponse;
-import com.example.agent.dto.AgentRunResponse;
-import com.example.agent.dto.AgentRunStatsResponse;
-import com.example.agent.dto.AgentTraceStep;
-import com.example.agent.dto.AgentTraceStepResponse;
+import com.example.agent.dto.*;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.example.agent.support.AgentJsonHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +24,7 @@ public class AgentLogService {
 
     private final AgentStepLogMapper agentStepLogMapper;
 
-    private final ObjectMapper objectMapper;
+    private final AgentJsonHelper agentJsonHelper;
 
     public void saveRunLog(String userMessage, AgentAskResponse response) {
         if (response == null) {
@@ -48,7 +43,7 @@ public class AgentLogService {
         runLog.setAnswer(response.getAnswer());
         runLog.setUsedTool(Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0);
         runLog.setToolName(response.getToolName());
-        runLog.setToolResult(serializeToolResult(response.getToolResult()));
+        runLog.setToolResult(agentJsonHelper.serializeForStorage(response.getToolResult()));
         runLog.setDecisionCostMs(response.getDecisionCostMs());
         runLog.setToolCostMs(response.getToolCostMs());
         runLog.setSummaryCostMs(response.getSummaryCostMs());
@@ -73,23 +68,6 @@ public class AgentLogService {
         agentRunLogMapper.insert(runLog);
 
         log.info("Agent主记录保存成功，traceId={}, id={}", response.getTraceId(), runLog.getId());
-    }
-
-    private String serializeToolResult(Object toolResult) {
-        if (toolResult == null) {
-            return null;
-        }
-
-        if (toolResult instanceof String text) {
-            return text;
-        }
-
-        try {
-            return objectMapper.writeValueAsString(toolResult);
-        } catch (Exception e) {
-            log.warn("Agent 工具结果序列化失败", e);
-            return String.valueOf(toolResult);
-        }
     }
 
     private void saveAgentSteps(String traceId, List<AgentTraceStep> steps) {
@@ -150,7 +128,7 @@ public class AgentLogService {
                 endTime
         );
 
-        List<AgentRunLog> list = agentRunLogMapper.selectPageByCondition(
+        List<AgentRunLog> runLogs = agentRunLogMapper.selectPageByCondition(
                 offset,
                 pageSize,
                 toolName,
@@ -159,28 +137,47 @@ public class AgentLogService {
                 endTime
         );
 
-        fillAnswerSummaryForList(list);
 
         return new AgentRunPageResponse(
                 pageNum,
                 pageSize,
                 total == null ? 0L : total,
-                list
+                buildRunListItemResponses(runLogs)
         );
     }
 
-    private void fillAnswerSummaryForList(List<AgentRunLog> list) {
-        if (list == null || list.isEmpty()) {
-            return;
+    private List<AgentRunListItemResponse> buildRunListItemResponses(List<AgentRunLog> runLogs) {
+        if (runLogs == null || runLogs.isEmpty()) {
+            return List.of();
         }
 
-        for (AgentRunLog item : list) {
-            item.setAnswerSummary(buildSummary(item.getAnswer(), 120));
+        List<AgentRunListItemResponse> responses = new ArrayList<>();
 
-            // 列表页不返回完整 answer，避免内容太长
-            item.setAnswer(null);
+        for (AgentRunLog runLog : runLogs) {
+            responses.add(buildRunListItemResponse(runLog));
         }
+
+        return responses;
     }
+
+    private AgentRunListItemResponse buildRunListItemResponse(AgentRunLog runLog) {
+        return new AgentRunListItemResponse(
+                runLog.getId(),
+                runLog.getTraceId(),
+                buildSummary(runLog.getUserMessage(), 120),
+                buildSummary(runLog.getAnswer(), 120),
+                toBoolean(runLog.getUsedTool()),
+                runLog.getToolName(),
+                runLog.getDecisionCostMs(),
+                runLog.getToolCostMs(),
+                runLog.getSummaryCostMs(),
+                runLog.getAgentCostMs(),
+                toBoolean(runLog.getSuccess()),
+                runLog.getErrorMessage(),
+                runLog.getCreatedTime()
+        );
+    }
+
 
     private String buildSummary(String text, int maxLength) {
         if (text == null || text.isBlank()) {
@@ -240,7 +237,7 @@ public class AgentLogService {
                 toBoolean(run.getUsedTool()),
                 run.getToolName(),
                 run.getToolResult(),
-                parseJsonIfPossible(run.getToolResult()),
+                agentJsonHelper.parseJsonIfPossible(run.getToolResult()),
                 run.getDecisionCostMs(),
                 run.getToolCostMs(),
                 run.getSummaryCostMs(),
@@ -268,24 +265,14 @@ public class AgentLogService {
                 step.getCostMs(),
                 step.getInputText(),
                 step.getOutputText(),
-                parseJsonIfPossible(step.getInputText()),
-                parseJsonIfPossible(step.getOutputText()),
+                agentJsonHelper.parseJsonIfPossible(step.getInputText()),
+                agentJsonHelper.parseJsonIfPossible(step.getOutputText()),
                 step.getErrorMessage()
         );
     }
 
 
-    private Object parseJsonIfPossible(String value) {
-        if (value == null || value.isBlank()) {
-            return value;
-        }
 
-        try {
-            return objectMapper.readValue(value, Object.class);
-        } catch (Exception e) {
-            return value;
-        }
-    }
 
     public AgentRunStatsResponse getRunStats(
             String toolName,

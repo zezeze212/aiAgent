@@ -5,6 +5,7 @@ import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.example.agent.support.AgentJsonHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,9 +25,9 @@ class AgentLogServiceTest {
 
     private final AgentStepLogMapper stepLogMapper = mock(AgentStepLogMapper.class);
 
-    private final ObjectMapper objectMapper = mock(ObjectMapper.class);
+    private final AgentJsonHelper agentJsonHelper = new AgentJsonHelper(new ObjectMapper());
 
-    private final AgentLogService agentLogService = new AgentLogService(runLogMapper, stepLogMapper, objectMapper);
+    private final AgentLogService agentLogService = new AgentLogService(runLogMapper, stepLogMapper, agentJsonHelper);
 
     @Test
     void shouldSaveFailedRunWhenAnyStepFails() {

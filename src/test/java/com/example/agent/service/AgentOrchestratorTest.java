@@ -6,6 +6,7 @@ import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.dto.ToolDecision;
 import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,13 @@ class AgentOrchestratorTest {
 
     private final AgentProperties agentProperties = new AgentProperties();
 
+    private final AgentJsonHelper agentJsonHelper = new AgentJsonHelper(new ObjectMapper());
+
     private final AgentOrchestrator agentOrchestrator =
             new AgentOrchestrator(
                     decisionClient,
                     toolRegistry,
+                    agentJsonHelper,
                     new ObjectMapper(),
                     agentProperties
             );

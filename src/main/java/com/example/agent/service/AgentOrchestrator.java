@@ -6,6 +6,7 @@ import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.dto.ToolDecision;
 import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,8 @@ public class AgentOrchestrator {
     private final DeepSeekDecisionClient decisionClient;
 
     private final ToolRegistry toolRegistry;
+
+    private final AgentJsonHelper agentJsonHelper;
 
     private final ObjectMapper objectMapper;
 
@@ -338,7 +341,7 @@ public class AgentOrchestrator {
                 finalAnswer,
                 context.usedTool,
                 context.lastToolName,
-                parseJsonIfPossible(context.lastToolResult),
+                agentJsonHelper.parseJsonIfPossible(context.lastToolResult),
                 toolCostMs,
                 agentCostMs,
                 context.traceId,
@@ -348,17 +351,7 @@ public class AgentOrchestrator {
         );
     }
 
-    private Object parseJsonIfPossible(String value) {
-        if (value == null || value.isBlank()) {
-            return value;
-        }
 
-        try {
-            return objectMapper.readValue(value, Object.class);
-        } catch (Exception e) {
-            return value;
-        }
-    }
 
     private List<AgentTraceStep> buildResponseSteps(List<AgentTraceStep> steps) {
         if (steps == null) {
@@ -366,8 +359,8 @@ public class AgentOrchestrator {
         }
 
         for (AgentTraceStep step : steps) {
-            step.setInputView(parseJsonIfPossible(step.getInput()));
-            step.setOutputView(parseJsonIfPossible(step.getOutput()));
+            step.setInputView(agentJsonHelper.parseJsonIfPossible(step.getInput()));
+            step.setOutputView(agentJsonHelper.parseJsonIfPossible(step.getOutput()));
         }
 
         return steps;

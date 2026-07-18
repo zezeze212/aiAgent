@@ -18,5 +18,5 @@ public class AgentRunPageResponse {
 
     private Long total;
 
-    private List<AgentRunLog> list;
+    private List<AgentRunListItemResponse> list;
 }

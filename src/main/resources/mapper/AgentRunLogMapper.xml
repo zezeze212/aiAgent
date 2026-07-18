@@ -104,8 +104,7 @@
         </where>
     </select>
 
-    <select id="selectPageByCondition"
-            resultType="com.example.agent.entity.AgentRunLog">
+    <select id="selectPageByCondition" resultType="com.example.agent.entity.AgentRunLog">
         SELECT
         id,
         trace_id,
@@ -113,6 +112,7 @@
         answer,
         used_tool,
         tool_name,
+        tool_result,
         decision_cost_ms,
         tool_cost_ms,
         summary_cost_ms,
