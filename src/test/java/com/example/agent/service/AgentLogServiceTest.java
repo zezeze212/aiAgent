@@ -26,8 +26,7 @@ class AgentLogServiceTest {
 
     private final ObjectMapper objectMapper = mock(ObjectMapper.class);
 
-    private final AgentLogService agentLogService =
-            new AgentLogService(runLogMapper, stepLogMapper, objectMapper);
+    private final AgentLogService agentLogService = new AgentLogService(runLogMapper, stepLogMapper, objectMapper);
 
     @Test
     void shouldSaveFailedRunWhenAnyStepFails() {

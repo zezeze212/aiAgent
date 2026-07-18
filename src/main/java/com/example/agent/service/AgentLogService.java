@@ -1,6 +1,12 @@
 package com.example.agent.service;
 
-import com.example.agent.dto.*;
+import com.example.agent.dto.AgentAskResponse;
+import com.example.agent.dto.AgentRunDetailResponse;
+import com.example.agent.dto.AgentRunPageResponse;
+import com.example.agent.dto.AgentRunResponse;
+import com.example.agent.dto.AgentRunStatsResponse;
+import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.AgentTraceStepResponse;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
@@ -203,7 +209,7 @@ public class AgentLogService {
 
         List<AgentStepLog> steps = agentStepLogMapper.selectByTraceId(traceId);
 
-        return new AgentRunDetailResponse(run, buildStepResponses(steps));
+        return new AgentRunDetailResponse(buildRunResponse(run), buildStepResponses(steps));
     }
 
     private List<AgentTraceStepResponse> buildStepResponses(List<AgentStepLog> steps) {
@@ -218,6 +224,39 @@ public class AgentLogService {
         }
 
         return responses;
+    }
+
+    private AgentRunResponse buildRunResponse(AgentRunLog run) {
+        if (run == null) {
+            return null;
+        }
+
+        return new AgentRunResponse(
+                run.getId(),
+                run.getTraceId(),
+                run.getUserMessage(),
+                run.getAnswer(),
+                buildSummary(run.getAnswer(), 120),
+                toBoolean(run.getUsedTool()),
+                run.getToolName(),
+                run.getToolResult(),
+                parseJsonIfPossible(run.getToolResult()),
+                run.getDecisionCostMs(),
+                run.getToolCostMs(),
+                run.getSummaryCostMs(),
+                run.getAgentCostMs(),
+                toBoolean(run.getSuccess()),
+                run.getErrorMessage(),
+                run.getCreatedTime()
+        );
+    }
+
+    private Boolean toBoolean(Integer value) {
+        if (value == null) {
+            return null;
+        }
+
+        return Integer.valueOf(1).equals(value);
     }
 
     private AgentTraceStepResponse buildStepResponse(AgentStepLog step) {
