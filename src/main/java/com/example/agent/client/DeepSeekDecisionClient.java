@@ -71,31 +71,40 @@ public class DeepSeekDecisionClient {
      * 工具结果必须加入原有 messages，而不是重新创建一段孤立对话。
      * 这样模型才能同时看到原始问题和前面已经取得的工具证据。
      */
-    public void appendToolResult(
-            List<Map<String, String>> messages,
-            String toolName,
-            Map<String, Object> arguments,
-            String toolResult
-    ) {
+    public void appendToolResult(List<Map<String, String>> messages, String toolName, Map<String, Object> arguments, String toolResult) {
         messages.add(Map.of(
                 "role", "user",
                 "content", """
-                        后端工具已经执行完成。
+                    后端工具已经执行完成。
 
-                        工具名称：
-                        %s
+                    工具名称：
+                    %s
 
-                        工具参数：
-                        %s
+                    工具参数：
+                    %s
 
-                        工具返回证据：
-                        %s
+                    工具返回证据：
+                    %s
 
-                        请结合原始用户问题和上述工具证据继续判断：
-                        1. 如果证据已经足够，needTool 返回 false，并在 directAnswer 中生成最终答案。
-                        2. 如果还需要其他工具，needTool 返回 true，并给出下一个工具及参数。
-                        3. 不要重复调用相同工具和相同参数。
-                        """.formatted(
+                    请基于原始用户问题和上述工具证据继续决策。
+
+                    如果工具返回证据中包含以下字段，请优先使用这些字段，不要重新猜测：
+                    - diagnosis：优先作为核心诊断结论。
+                    - missingColumns：如果非空，必须明确说明这些字段在目标表中不存在。
+                    - existingColumns：用于说明目标表中实际存在的字段。
+                    - suggestedActions：优先作为排查建议来源。
+                    - errorEvidence：作为报错类型、原始错误信息、字段提取结果的依据。
+                    - tableSchema：作为真实表结构证据，不要编造表结构中不存在的字段。
+
+                    回答规则：
+                    1. 如果 diagnosis、missingColumns 或 suggestedActions 已经足以回答用户问题，needTool 返回 false。
+                    2. directAnswer 必须基于工具证据生成自然语言回答。
+                    3. directAnswer 中禁止枚举完整 tableSchema 或完整 existingColumns。除非用户明确问“表有哪些字段”或“完整表结构”，否则只能点名缺失字段和必要依据。
+                    4. 不要根据字段名猜测字段类型、长度、默认值或注释。
+                    5. 不要生成 ALTER TABLE、UPDATE、DELETE 等 SQL，除非用户明确要求并提供必要字段定义。
+                    6. 只有现有证据不足时，needTool 才能继续为 true。
+                    7. 不要重复调用相同工具和相同参数。
+                    """.formatted(
                         toolName,
                         toJsonSafely(arguments),
                         toolResult
@@ -125,9 +134,13 @@ public class DeepSeekDecisionClient {
                 - 不得重复调用名称和参数都相同的工具。
                 - directAnswer 必须以真实工具证据为依据，不得编造证据中不存在的信息。
                 - 不得根据字段名猜测字段类型、长度、默认值和注释。
+                - 如果工具结果中包含 diagnosis、missingColumns、suggestedActions，应优先使用这些字段生成 directAnswer。
+                - 工具结果中的 diagnosis、missingColumns、existingColumns、suggestedActions 是后端工具产生的确定性诊断证据，优先级高于模型自行推测。
+                - directAnswer 中禁止枚举完整 tableSchema 或完整 existingColumns，除非用户明确要求查看完整表结构。
                 - 无法确认业务设计时，不要直接生成 ALTER TABLE、UPDATE、DELETE 等 SQL。
                 - 字段不存在时，应优先建议检查 Mapper XML、实体类和数据库版本。
                 - 只有用户明确确认需要新增字段并提供字段定义后，才能生成 DDL。
+                
 
                 你只能返回 JSON，不要返回 Markdown、解释文字或代码块。
 
