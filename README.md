@@ -1,253 +1,223 @@
-# Java 后端智能排障 Agent
+# ai-agent-demo
 
-基于 **Java 17、Spring Boot、DeepSeek API、MyBatis 和 MySQL** 构建的后端排障 Agent。
+一个基于 Spring Boot + DeepSeek API 的 Java 后端排障 Agent Demo。
 
-项目面向 Java 后端开发中的常见异常场景，由大模型判断是否需要调用工具；工具负责获取真实证据，主 Agent 再结合用户问题和工具证据生成最终排障结论。
+项目目标是模拟一个后端智能排障助手：用户输入 SQL / MyBatis / 数据库字段相关报错后，Agent 会先判断是否需要调用后端工具，再结合真实数据库表结构、错误证据和工具诊断结果生成排查建议，并记录完整调用链路。
 
-当前重点不是堆叠大量工具，而是实现一条职责清晰、可追踪、可测试的 Agent 执行链。
+## 一、项目定位
 
----
+本项目不是简单的 AI 问答接口，而是一个带有工具调用、运行保护和调用追踪的后端 Agent 示例。
 
-## 一、项目目标
+主要解决的问题：
 
-项目主要解决以下问题：
+- SQL 报错分析；
+- MyBatis 字段映射错误排查；
+- 数据库表结构不一致分析；
+- 工具调用过程追踪；
+- Agent 运行结果落库与查询。
 
-- SQL 字段不存在、表不存在、唯一键冲突等数据库异常；
-- MyBatis 参数名不匹配、字段映射错误；
-- SQL 与真实数据库表结构不一致；
-- 普通 Java、Spring Boot 和接口调用异常分析；
-- Agent 工具选择、执行过程和失败原因追踪。
+典型输入示例：
 
-项目定位：
+```text
+帮我分析这个报错：
+java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'，
+相关表是 agent_run_log
+```
 
-> Java 后端工程能力 + 大模型应用 + Agent 工具调用与工程化治理。
-
----
+Agent 会自动判断需要查询表结构，并调用工具分析 `theme_code` 是否存在于 `agent_run_log` 表中。
 
 ## 二、技术栈
 
 - Java 17
 - Spring Boot 3.x
-- Spring MVC
-- WebClient
 - MyBatis
 - MySQL
-- Jackson
 - Lombok
+- WebClient
 - DeepSeek API
 - JUnit 5
 - Mockito
-- Maven
 - Postman
 
----
+## 三、核心能力
 
-## 三、核心执行流程
+### 1. Agent 工具决策
 
-```mermaid
-flowchart TD
-    A[用户提交问题] --> B[AI判断是否需要工具]
-    B -->|不需要| C[直接回答]
-    B -->|需要| D[ToolRegistry执行工具]
-    D --> E{工具是否成功}
-    E -->|失败| F[返回错误并记录失败]
-    E -->|成功| G[AI结合工具证据总结]
-    C --> H[保存运行记录]
-    F --> H
-    G --> H
-```
+用户请求进入 `/agent/ask` 后，系统会先由大模型判断是否需要调用工具。
 
-成功调用工具时，执行步骤为：
-
-```text
-AI_DECISION
-→ TOOL_EXECUTION
-→ AI_SUMMARY
-```
-
-工具执行失败时，不再额外调用 AI：
-
-```text
-AI_DECISION
-→ TOOL_EXECUTION（success=false）
-```
-
----
-
-## 四、工具设计原则
-
-项目将“获取证据”和“分析推理”分开：
-
-- 工具负责查询数据库、提取结构化信息等确定性操作；
-- 主 Agent 负责理解问题、选择工具和生成最终回答；
-- 单纯把用户原始问题再次交给另一个 AI 的类，不作为 Agent 工具；
-- 与 Java 后端排障无关的工具不进入当前项目。
-
-当前只保留两个有效工具。
-
-### 1. `getTableSchema`
-
-查询当前 MySQL 数据库中指定表的真实字段结构。
-
-输入：
+如果需要工具，模型返回类似结构：
 
 ```json
 {
-  "tableName": "agent_run_log"
+  "needTool": true,
+  "toolName": "analyzeSqlErrorWithSchema",
+  "arguments": {
+    "log": "java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'",
+    "tableName": "agent_run_log"
+  },
+  "directAnswer": ""
 }
 ```
 
-返回内容包括：
+如果不需要工具，则直接返回自然语言答案。
 
-- 字段名；
-- 字段类型；
-- 是否允许为空；
-- 默认值；
-- 字段注释；
-- 字段顺序。
+### 2. 工具调用
 
-当表名不存在时，可以基于编辑距离提示相似表名。
+当前重点工具：
 
-### 2. `analyzeSqlErrorWithSchema`
-
-提取 SQL/MyBatis 报错中的结构化错误证据，并查询相关数据库表结构。
-
-输入：
-
-```json
-{
-  "log": "java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'",
-  "tableName": "agent_run_log"
-}
+```text
+analyzeSqlErrorWithSchema
 ```
 
-工具返回：
+该工具会：
+
+- 提取 SQL 报错中的字段名；
+- 查询目标表真实结构；
+- 对比报错字段和真实字段；
+- 找出缺失字段；
+- 生成确定性诊断结果；
+- 返回结构化工具证据。
+
+工具结果示例：
 
 ```json
 {
   "errorEvidence": {
     "errorType": "UNKNOWN_COLUMN",
+    "rawMessage": "java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'",
     "columns": ["theme_code"]
   },
   "tableName": "agent_run_log",
-  "tableSchema": []
+  "referencedColumns": ["theme_code"],
+  "existingColumns": ["id", "trace_id", "user_message"],
+  "missingColumns": ["theme_code"],
+  "diagnosis": "SQL 引用了 agent_run_log 表中不存在的字段：theme_code",
+  "suggestedActions": [
+    "全局搜索字段 theme_code，定位 Mapper XML、注解 SQL 或 QueryWrapper 中的引用位置。",
+    "确认实体字段、resultMap、表字段三者是否一致。",
+    "确认当前连接的数据库环境是否执行了最新 DDL。"
+  ]
 }
 ```
 
-工具本身不调用大模型。主 Agent 根据这些证据生成最终结论。
+### 3. 多轮 Agent 编排
 
----
+Agent 支持多轮工具调用流程：
 
-## 五、SQL 错误证据提取
-
-`SqlErrorEvidenceExtractor` 使用 Java 正则表达式从日志中提取确定性证据。
-
-当前支持：
-
-| 错误类型          | 示例                                               |
-| ----------------- | -------------------------------------------------- |
-| `UNKNOWN_COLUMN`  | `Unknown column 'theme_code'`                      |
-| `TABLE_NOT_FOUND` | `Table 'ai_agent.game_round_result' doesn't exist` |
-| `DUPLICATE_KEY`   | `Duplicate entry '106-1' for key 'uk_match_round'` |
-| `DATA_TOO_LONG`   | `Data too long for column 'camp_goal'`             |
-| `SQL_SYNTAX`      | `You have an error in your SQL syntax near ...`    |
-| `PARAM_NOT_FOUND` | `Parameter 'tool' not found`                       |
-| `UNKNOWN`         | 未匹配到明确错误类型                               |
-
-提取结果可包含：
-
-- 字段名；
-- 表名；
-- 唯一键；
-- 重复值；
-- MyBatis 参数名；
-- SQL 出错附近片段；
-- 初步排查建议。
-
----
-
-## 六、工具注册与执行
-
-所有工具实现统一接口：
-
-```java
-public interface AgentTool {
-    String name();
-
-    String description();
-
-    String parameterSchema();
-
-    String execute(Map<String, Object> arguments);
-}
+```text
+用户问题
+  -> AI 判断是否需要工具
+  -> 执行工具
+  -> 将工具结果追加回上下文
+  -> AI 基于工具证据继续判断
+  -> 输出最终答案
 ```
 
-`ToolRegistry` 通过 Spring 自动注入 `List<AgentTool>`，并按工具名称完成注册。
+当前设置了最大工具调用次数，避免 Agent 无限循环。
 
-主要职责：
+### 4. 运行保护机制
 
-- 检查工具名称是否重复；
-- 向大模型提供工具名称、描述和参数格式；
-- 根据 AI 返回的 `toolName` 查找工具；
-- 统一执行工具；
-- 记录工具耗时；
-- 将未知工具和执行异常封装为 `ToolExecutionResult`。
+当前已实现的保护机制：
 
-工具参数非法时抛出 `IllegalArgumentException`，由 `ToolRegistry` 统一转换为：
+- 最大工具调用次数保护；
+- 重复工具调用保护；
+- Agent 总执行时间保护；
+- DeepSeek 单次请求超时；
+- AI 决策解析失败保护。
 
-```json
-{
-  "success": false,
-  "result": "工具执行失败：参数错误",
-  "errorMessage": "参数错误"
-}
+例如，当模型重复调用相同工具和相同参数时，Agent 会终止执行并记录保护步骤。
+
+### 5. 调用链路追踪
+
+每一次 `/agent/ask` 请求都会生成一个 `traceId`。
+
+主记录保存在：
+
+```text
+agent_run_log
 ```
 
----
+步骤记录保存在：
 
-## 七、链路追踪与日志记录
+```text
+agent_step_log
+```
 
-每次调用 `/agent/ask` 都会生成 `traceId`，用于串联完整执行过程。
-
-### 1. 主运行记录
-
-表：`agent_run_log`
-
-记录：
+每次运行会记录：
 
 - 用户原始问题；
 - 最终回答；
 - 是否使用工具；
-- 工具名称和结果；
+- 工具名称；
+- 工具结果；
 - AI 决策耗时；
 - 工具执行耗时；
 - AI 总结耗时；
 - Agent 总耗时；
-- 最终成功状态；
-- 错误信息。
-
-### 2. 步骤记录
-
-表：`agent_step_log`
-
-记录每个步骤的：
-
-- 步骤名称和顺序；
-- 输入和输出；
 - 是否成功；
-- 执行耗时；
 - 错误信息。
 
-只要任意步骤失败，主运行记录就保存为：
+每个步骤会记录：
 
-```text
-success = 0
-errorMessage = 第一个失败步骤的错误信息
+
+- `id`：主键 ID；
+- `trace_id`：一次 Agent 请求追踪 ID；
+- `step_name`：步骤名称，例如 `AI_DECISION`、`TOOL_EXECUTION`、`AI_SUMMARY`、`AGENT_GUARD`；
+- `description`：步骤描述；
+- `success`：步骤是否成功；
+- `cost_ms`：步骤耗时；
+- `input_text`：步骤输入；
+- `output_text`：步骤输出；
+- `error_message`：错误信息；
+- `step_order`：步骤顺序；
+- `created_time`：创建时间。
+- `id`：主键 ID；
+- `trace_id`：一次 Agent 请求追踪 ID；
+- `step_name`：步骤名称，例如 `AI_DECISION`、`TOOL_EXECUTION`、`AI_SUMMARY`、`AGENT_GUARD`；
+- `description`：步骤描述；
+- `success`：步骤是否成功；
+- `cost_ms`：步骤耗时；
+- `input_text`：步骤输入；
+- `output_text`：步骤输出；
+- `error_message`：错误信息；
+- `step_order`：步骤顺序；
+- `created_time`：创建时间。
+
+### 6. 查询接口 DTO 优化
+
+项目中区分了数据库实体和接口响应 DTO。
+
+例如：
+
+- `AgentRunLog`：数据库实体；
+- `AgentRunResponse`：运行详情响应；
+- `AgentRunListItemResponse`：分页列表响应；
+- `AgentTraceStepResponse`：步骤详情响应。
+
+这样可以避免直接把数据库实体暴露给前端。
+
+分页列表只返回轻量摘要：
+
+```json
+{
+  "traceId": "xxxx",
+  "userMessageSummary": "帮我分析这个报错...",
+  "answerSummary": "根据报错信息...",
+  "usedTool": true,
+  "toolName": "analyzeSqlErrorWithSchema",
+  "success": true
+}
 ```
 
----
+详情接口则返回完整排查信息，包括：
 
-## 八、接口说明
+- `toolResult`
+- `toolResultView`
+- `steps`
+- `inputView`
+- `outputView`
+
+## 四、主要接口
 
 ### 1. Agent 问答
 
@@ -259,273 +229,206 @@ POST /agent/ask
 
 ```json
 {
-  "message": "帮我分析这个报错：Unknown column 'theme_code'，相关表是 agent_run_log"
+  "message": "帮我分析这个报错：java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'，相关表是 agent_run_log"
 }
 ```
 
-### 2. 查询可用工具
+响应核心字段：
+
+```json
+{
+  "answer": "SQL 中引用了 agent_run_log 表中不存在的字段 theme_code...",
+  "usedTool": true,
+  "toolName": "analyzeSqlErrorWithSchema",
+  "toolResult": {},
+  "traceId": "xxxx",
+  "steps": []
+}
+```
+
+### 2. 查询工具列表
 
 ```http
 GET /agent/tools
 ```
 
-### 3. 分页查询运行记录
+用于查看当前 Agent 可用工具。
+
+### 3. 分页查询 Agent 运行记录
 
 ```http
-GET /agent/runs?pageNum=1&pageSize=10
+GET /agent/runs
 ```
 
-支持：
+支持按工具名、成功状态、时间范围筛选。
 
-- `toolName`；
-- `success`；
-- `startTime`；
-- `endTime`。
-
-### 4. 查询运行详情
+### 4. 查询单次 Agent 运行详情
 
 ```http
 GET /agent/runs/{traceId}
 ```
 
-### 5. 查询运行统计
+返回主记录和完整步骤链路。
 
-```http
-GET /agent/runs/stats
-```
+## 五、核心类说明
 
-### 6. 普通 AI 问答
+### AgentOrchestrator
 
-```http
-POST /ai/chat
-```
+Agent 编排核心类，负责：
 
-### 7. Java 错误结构化分析
+- 创建运行上下文；
+- 调用 DeepSeek 进行工具决策；
+- 执行工具；
+- 检查运行保护；
+- 追加工具结果；
+- 构建最终响应。
 
-```http
-POST /ai/analyze-error
-```
+### DeepSeekDecisionClient
 
-查看大模型原始返回：
+DeepSeek 调用客户端，负责：
 
-```http
-POST /ai/analyze-error/raw
-```
+- 构造 system prompt；
+- 调用 DeepSeek API；
+- 解析工具决策 JSON；
+- 将工具结果追加到消息上下文；
+- 控制模型基于工具证据生成最终回答。
 
----
+### ToolRegistry
 
-## 九、异常与安全处理
+工具注册中心，负责：
 
-当前已经实现：
+- 管理所有 AgentTool；
+- 根据工具名称执行工具；
+- 统一处理工具不存在、工具异常、工具耗时。
 
-- 请求参数基础校验；
-- 全局异常处理；
-- 统一 `Result<T>` 返回结构；
-- 工具名称白名单；
-- 数据库表名格式校验；
-- SQL 元数据查询使用参数绑定；
-- 工具失败后停止 AI 总结；
-- 工具失败状态和错误信息落库；
-- Prompt 限制模型编造字段类型和高风险 DDL。
+### AnalyzeSqlErrorWithSchemaTool
 
-表名当前只允许：
+SQL 报错分析工具，负责：
 
-```text
-字母、数字、下划线
-```
+- 提取错误证据；
+- 查询数据库表结构；
+- 对比字段是否存在；
+- 生成缺失字段诊断；
+- 返回结构化诊断结果。
 
-校验表达式：
+### AgentLogService
 
-```regex
-^[a-zA-Z0-9_]+$
-```
+日志服务，负责：
 
----
+- 保存 Agent 主记录；
+- 保存 Agent 步骤记录；
+- 分页查询运行记录；
+- 查询单次运行详情；
+- 将数据库实体转换成响应 DTO。
 
-## 十、单元测试
+### AgentJsonHelper
 
-当前核心测试共 12 个。
+JSON 辅助组件，负责：
 
-### `SqlErrorEvidenceExtractorTest`：7个
+- 将 JSON 字符串解析成对象用于接口展示；
+- 将对象序列化成字符串用于数据库保存。
 
-- Unknown Column；
-- Table Not Found；
-- Duplicate Key；
-- Data Too Long；
-- SQL Syntax；
-- Parameter Not Found；
-- Unknown 降级。
+## 六、运行配置
 
-### `ToolRegistryTest`：3个
-
-- 正常工具执行；
-- 未知工具；
-- 工具抛出异常。
-
-### `AgentLogServiceTest`：2个
-
-- 任意步骤失败时保存失败主记录；
-- 所有步骤成功时保存成功主记录。
-
-测试使用：
-
-- JUnit 5；
-- Mockito；
-- `verify()`；
-- `ArgumentCaptor`。
-
-核心单元测试不启动 Spring、不连接 MySQL、不调用 DeepSeek。
-
-运行测试：
-
-```bash
-./mvnw test
-```
-
-Windows：
-
-```bat
-mvnw.cmd test
-```
-
----
-
-## 十一、项目结构
-
-```text
-src/main/java/com/example/agent
-├── common          统一返回结构
-├── config          DeepSeek、WebClient配置
-├── controller      Agent和AI接口
-├── dto             请求、响应和执行结果
-├── entity          运行记录和步骤记录
-├── exception       业务异常与全局异常处理
-├── mapper          MyBatis Mapper接口
-├── service         Agent编排、AI调用、日志服务
-├── sql             SQL错误证据与提取器
-└── tool            工具接口、注册中心和有效工具
-
-src/main/resources
-├── mapper          MyBatis XML
-└── application.yml
-
-src/test/java/com/example/agent
-├── service         日志服务测试
-├── sql             SQL证据提取测试
-└── tool            工具注册中心测试
-```
-
----
-
-## 十二、本地运行
-
-### 1. 环境要求
-
-- JDK 17；
-- Maven 3.8+，或直接使用项目自带 Maven Wrapper；
-- MySQL 8.x；
-- 有效的大模型 API Key。
-
-### 2. 创建数据库
-
-```sql
-CREATE DATABASE ai_agent
-    DEFAULT CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-```
-
-项目运行需要：
-
-```text
-agent_run_log
-agent_step_log
-```
-
-两张日志表。建表脚本应以项目实际 SQL 文件为准。
-
-### 3. 配置环境变量
-
-禁止在 `application.yml` 中提交真实密码和 API Key。
+核心配置示例：
 
 ```yaml
-spring:
-  datasource:
-    password: ${SQL_PASSWORD}
+server:
+  port: 8088
 
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}
+  base-url: https://api.deepseek.com
+  model: deepseek-chat
+  timeout-ms: 30000
+
+agent:
+  max-execution-time-ms: 120000
 ```
 
-需要设置：
+注意：
+
+- 不要把真实 API Key 写入代码或 README；
+- 本地通过环境变量配置 `DEEPSEEK_API_KEY`；
+- MySQL 密码也应通过环境变量配置。
+
+## 七、当前已完成阶段
+
+### M1：Agent 编排闭环
+
+已完成：
+
+- Agent 三类职责拆分；
+- AI 工具决策；
+- 工具调用；
+- 多轮消息上下文；
+- 重复调用保护；
+- 最大工具次数保护；
+- 总执行时间保护；
+- DeepSeek 请求超时；
+- AI 决策失败落库；
+- Agent 运行日志与步骤日志。
+
+### M2：接口结构与工具诊断增强
+
+已完成：
+
+- `toolResult` 结构化展示；
+- `inputView/outputView` 展示字段；
+- 详情接口 DTO 化；
+- 分页接口 DTO 化；
+- `AgentJsonHelper` 抽取；
+- SQL 错误工具增强；
+- 缺失字段诊断；
+- 排查建议结构化输出；
+- 模型总结优先使用工具诊断结果。
+
+## 八、演示路径
+
+建议按下面顺序演示：
+
+1. 启动项目；
+2. 使用 Postman 调用 `/agent/ask`；
+3. 输入 Unknown column 报错；
+4. 查看返回的 `answer`、`toolResult`、`traceId`；
+5. 调用 `/agent/runs/{traceId}`；
+6. 查看完整 steps；
+7. 调用 `/agent/runs`；
+8. 查看分页摘要；
+9. 说明 Agent 的保护机制和日志追踪能力。
+
+推荐演示问题：
 
 ```text
-SQL_PASSWORD
-DEEPSEEK_API_KEY
+帮我分析这个报错：
+java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'，
+相关表是 agent_run_log
 ```
 
-如果密钥曾经进入 Git 历史，应在服务商后台作废旧密钥并重新生成。
+## 九、项目亮点
 
-### 4. 启动项目
+- 不是简单 AI 问答，而是带工具调用的 Agent；
+- 使用真实数据库表结构作为排障证据；
+- Agent 决策、工具执行、总结回答全链路可追踪；
+- 具备重复调用、最大调用次数、超时保护；
+- 支持工具结果结构化展示；
+- 区分数据库实体和接口响应 DTO；
+- 工具输出不仅返回原始表结构，还能生成确定性诊断结果；
+- 适合作为 Java 后端转 AI Agent 开发的学习 Demo。
 
-Windows：
+## 十、后续计划
 
-```bat
-mvnw.cmd spring-boot:run
-```
+短期计划：
 
-Linux/macOS：
+- 补充 README 示例截图；
+- 补充 Postman 示例；
+- 增加关键单元测试；
+- 整理项目学习记录。
 
-```bash
-./mvnw spring-boot:run
-```
+可选扩展：
 
-默认端口：
-
-```text
-8088
-```
-
----
-
-## 十三、当前边界
-
-当前版本仍然是手写 Agent 第一阶段：
-
-- 一次请求最多执行一个工具；
-- 尚未实现多步工具循环；
-- 尚未实现最大步骤和重复调用停止条件；
-- 尚未接入 RAG；
-- 尚未提供前端页面；
-- 尚未接入 Spring AI。
-
-这些属于后续里程碑，不在当前阶段提前实现。
-
----
-
-## 十四、后续计划
-
-1. 校验大模型返回的 `ToolDecision`；
-2. 增加最大步骤、重复工具调用和总超时停止条件；
-3. 建立固定排障案例和自动评测；
-4. 完善运行状态、Prompt版本和Token记录；
-5. 使用稳定版 Spring AI 重构 Tool Calling；
-6. 增加 RAG 故障知识检索；
-7. 借鉴实际算法接口经验，实现异步复杂诊断；
-8. 增加 Vue 演示页面和 Docker 部署。
-
-后续不为展示技术数量而增加天气、新闻、计算器、SQL生成等无关工具。
-
----
-
-## 十五、项目亮点
-
-- 手写实现 Agent 决策、工具注册、执行和结果回填流程；
-- 工具只负责获取真实证据，避免工具内部重复调用 AI；
-- Java 正则提取 SQL/MyBatis 结构化错误证据；
-- 结合 `information_schema` 校验真实数据库表结构；
-- 统一记录决策、工具和总结三阶段耗时；
-- 工具失败后停止无意义的大模型调用；
-- 主记录和步骤记录支持追踪、筛选和统计；
-- 使用 JUnit 5、Mockito 和 ArgumentCaptor 覆盖核心逻辑；
-- 对数据库表名、敏感配置和高风险 DDL 进行安全约束。
-
+- 增加 Mapper XML 分析工具；
+- 增加 SQL 片段分析工具；
+- 接入本地大模型或 OpenAI 兼容接口；
+- 增加简单前端页面；
+- 支持更多数据库错误类型。
