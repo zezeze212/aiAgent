@@ -18,104 +18,85 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AgentController {
 
-    private final SimpleAgentService simpleAgentService;
+	private final SimpleAgentService simpleAgentService;
 
-    private final ToolRegistry toolRegistry;
+	private final ToolRegistry toolRegistry;
 
-    private final AgentLogService agentLogService;
+	private final AgentLogService agentLogService;
 
-    @PostMapping("/ask")
-    public Result<AgentAskResponse> ask(@RequestBody AgentAskRequest request) {
-        if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-            throw new BusinessException(400, "message 不能为空");
-        }
+	@PostMapping("/ask")
+	public Result<AgentAskResponse> ask(@RequestBody AgentAskRequest request) {
+		if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+			throw new BusinessException(400, "message 不能为空");
+		}
 
-        AgentAskResponse response = simpleAgentService.ask(request.getMessage());
-        return Result.success(response);
-    }
+		AgentAskResponse response = simpleAgentService.ask(request.getMessage());
+		return Result.success(response);
+	}
 
-    @GetMapping("/tools")
-    public Result<List<ToolInfo>> listTools() {
-        return Result.success(toolRegistry.listTools());
-    }
+	@GetMapping("/tools")
+	public Result<List<ToolInfo>> listTools() {
+		return Result.success(toolRegistry.listTools());
+	}
 
-    @GetMapping("/runs")
-    public Result<AgentRunPageResponse> getRunPage(
-            @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) String toolName,
-            @RequestParam(required = false) Integer success,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime
-    ) {
-        if (pageNum == null || pageNum <= 0) {
-            throw new BusinessException(400, "pageNum 必须大于 0");
-        }
+	@GetMapping("/runs")
+	public Result<AgentRunPageResponse> getRunPage(@RequestParam(defaultValue = "1") Integer pageNum,
+			@RequestParam(defaultValue = "10") Integer pageSize, @RequestParam(required = false) String toolName,
+			@RequestParam(required = false) Integer success,
+			@RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+			@RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+		if (pageNum == null || pageNum <= 0) {
+			throw new BusinessException(400, "pageNum 必须大于 0");
+		}
 
-        if (pageSize == null || pageSize <= 0) {
-            throw new BusinessException(400, "pageSize 必须大于 0");
-        }
+		if (pageSize == null || pageSize <= 0) {
+			throw new BusinessException(400, "pageSize 必须大于 0");
+		}
 
-        if (pageSize > 100) {
-            throw new BusinessException(400, "pageSize 不能超过 100");
-        }
+		if (pageSize > 100) {
+			throw new BusinessException(400, "pageSize 不能超过 100");
+		}
 
-        if (success != null && success != 0 && success != 1) {
-            throw new BusinessException(400, "success 只能是 0 或 1");
-        }
+		if (success != null && success != 0 && success != 1) {
+			throw new BusinessException(400, "success 只能是 0 或 1");
+		}
 
-        if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
-            throw new BusinessException(400, "startTime 不能晚于 endTime");
-        }
+		if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
+			throw new BusinessException(400, "startTime 不能晚于 endTime");
+		}
 
-        AgentRunPageResponse response = agentLogService.getRunPage(
-                pageNum,
-                pageSize,
-                toolName,
-                success,
-                startTime,
-                endTime
-        );
+		AgentRunPageResponse response = agentLogService.getRunPage(pageNum, pageSize, toolName, success, startTime,
+				endTime);
 
-        return Result.success(response);
-    }
+		return Result.success(response);
+	}
 
-    @GetMapping("/runs/stats")
-    public Result<AgentRunStatsResponse> getRunStats(
-            @RequestParam(required = false) String toolName,
-            @RequestParam(required = false) Integer success,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime
-    ) {
-        if (success != null && success != 0 && success != 1) {
-            throw new BusinessException(400, "success 只能是 0 或 1");
-        }
+	@GetMapping("/runs/stats")
+	public Result<AgentRunStatsResponse> getRunStats(@RequestParam(required = false) String toolName,
+			@RequestParam(required = false) Integer success,
+			@RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+			@RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+		if (success != null && success != 0 && success != 1) {
+			throw new BusinessException(400, "success 只能是 0 或 1");
+		}
 
-        if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
-            throw new BusinessException(400, "startTime 不能晚于 endTime");
-        }
+		if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
+			throw new BusinessException(400, "startTime 不能晚于 endTime");
+		}
 
-        AgentRunStatsResponse response = agentLogService.getRunStats(
-                toolName,
-                success,
-                startTime,
-                endTime
-        );
+		AgentRunStatsResponse response = agentLogService.getRunStats(toolName, success, startTime, endTime);
 
-        return Result.success(response);
-    }
+		return Result.success(response);
+	}
 
-    @GetMapping("/runs/{traceId}")
-    public Result<AgentRunDetailResponse> getRunDetail(@PathVariable String traceId) {
-        if (traceId == null || traceId.trim().isEmpty()) {
-            throw new BusinessException(400, "traceId 不能为空");
-        }
+	@GetMapping("/runs/{traceId}")
+	public Result<AgentRunDetailResponse> getRunDetail(@PathVariable String traceId) {
+		if (traceId == null || traceId.trim().isEmpty()) {
+			throw new BusinessException(400, "traceId 不能为空");
+		}
 
-        AgentRunDetailResponse response = agentLogService.getRunDetail(traceId);
-        return Result.success(response);
-    }
+		AgentRunDetailResponse response = agentLogService.getRunDetail(traceId);
+		return Result.success(response);
+	}
+
 }

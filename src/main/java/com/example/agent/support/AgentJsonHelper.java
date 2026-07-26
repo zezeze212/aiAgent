@@ -10,34 +10,37 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AgentJsonHelper {
 
-    private final ObjectMapper objectMapper;
+	private final ObjectMapper objectMapper;
 
-    public Object parseJsonIfPossible(String value) {
-        if (value == null || value.isBlank()) {
-            return value;
-        }
+	public Object parseJsonIfPossible(String value) {
+		if (value == null || value.isBlank()) {
+			return value;
+		}
 
-        try {
-            return objectMapper.readValue(value, Object.class);
-        } catch (Exception e) {
-            return value;
-        }
-    }
+		try {
+			return objectMapper.readValue(value, Object.class);
+		}
+		catch (Exception e) {
+			return value;
+		}
+	}
 
-    public String serializeForStorage(Object value) {
-        if (value == null) {
-            return null;
-        }
+	public String serializeForStorage(Object value) {
+		if (value == null) {
+			return null;
+		}
 
-        if (value instanceof String text) {
-            return text;
-        }
+		if (value instanceof String text) {
+			return text;
+		}
 
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("Agent JSON 序列化失败", e);
-            return String.valueOf(value);
-        }
-    }
+		try {
+			return objectMapper.writeValueAsString(value);
+		}
+		catch (Exception e) {
+			log.warn("Agent JSON 序列化失败", e);
+			return String.valueOf(value);
+		}
+	}
+
 }

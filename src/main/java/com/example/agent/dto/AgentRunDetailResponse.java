@@ -11,7 +11,8 @@ import java.util.List;
 @AllArgsConstructor
 public class AgentRunDetailResponse {
 
-    private AgentRunResponse run;
+	private AgentRunResponse run;
 
-    private List<AgentTraceStepResponse> steps;
+	private List<AgentTraceStepResponse> steps;
+
 }

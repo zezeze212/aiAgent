@@ -11,35 +11,36 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AgentRunResponse {
 
-    private Long id;
+	private Long id;
 
-    private String traceId;
+	private String traceId;
 
-    private String userMessage;
+	private String userMessage;
 
-    private String answer;
+	private String answer;
 
-    private String answerSummary;
+	private String answerSummary;
 
-    private Boolean usedTool;
+	private Boolean usedTool;
 
-    private String toolName;
+	private String toolName;
 
-    private String toolResult;
+	private String toolResult;
 
-    private Object toolResultView;
+	private Object toolResultView;
 
-    private Long decisionCostMs;
+	private Long decisionCostMs;
 
-    private Long toolCostMs;
+	private Long toolCostMs;
 
-    private Long summaryCostMs;
+	private Long summaryCostMs;
 
-    private Long agentCostMs;
+	private Long agentCostMs;
 
-    private Boolean success;
+	private Boolean success;
 
-    private String errorMessage;
+	private String errorMessage;
 
-    private LocalDateTime createdTime;
+	private LocalDateTime createdTime;
+
 }

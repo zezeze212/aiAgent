@@ -10,29 +10,21 @@ import java.util.List;
 
 public interface AgentRunLogMapper {
 
-    int insert(AgentRunLog runLog);
+	int insert(AgentRunLog runLog);
 
-    AgentRunLog selectByTraceId(@Param("traceId") String traceId);
+	AgentRunLog selectByTraceId(@Param("traceId") String traceId);
 
-    Long countByCondition(@Param("toolName") String toolName,
-                          @Param("success") Integer success,
-                          @Param("startTime") LocalDateTime startTime,
-                          @Param("endTime") LocalDateTime endTime);
+	Long countByCondition(@Param("toolName") String toolName, @Param("success") Integer success,
+			@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
 
-    List<AgentRunLog> selectPageByCondition(@Param("offset") Integer offset,
-                                            @Param("pageSize") Integer pageSize,
-                                            @Param("toolName") String toolName,
-                                            @Param("success") Integer success,
-                                            @Param("startTime") LocalDateTime startTime,
-                                            @Param("endTime") LocalDateTime endTime);
+	List<AgentRunLog> selectPageByCondition(@Param("offset") Integer offset, @Param("pageSize") Integer pageSize,
+			@Param("toolName") String toolName, @Param("success") Integer success,
+			@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
 
-    AgentRunStatsResponse selectOverallStats(@Param("toolName") String toolName,
-                                             @Param("success") Integer success,
-                                             @Param("startTime") LocalDateTime startTime,
-                                             @Param("endTime") LocalDateTime endTime);
+	AgentRunStatsResponse selectOverallStats(@Param("toolName") String toolName, @Param("success") Integer success,
+			@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
 
-    List<ToolStatsItem> selectToolStats(@Param("toolName") String toolName,
-                                        @Param("success") Integer success,
-                                        @Param("startTime") LocalDateTime startTime,
-                                        @Param("endTime") LocalDateTime endTime);
+	List<ToolStatsItem> selectToolStats(@Param("toolName") String toolName, @Param("success") Integer success,
+			@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
+
 }

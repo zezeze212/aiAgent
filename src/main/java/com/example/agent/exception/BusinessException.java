@@ -3,16 +3,18 @@ package com.example.agent.exception;
 import lombok.Data;
 
 @Data
-public class BusinessException extends RuntimeException{
-    private final Integer code;
+public class BusinessException extends RuntimeException {
 
-    public BusinessException(String message) {
-        super(message);
-        this.code = 500;
-    }
+	private final Integer code;
 
-    public BusinessException(Integer code, String message) {
-        super(message);
-        this.code = code;
-    }
+	public BusinessException(String message) {
+		super(message);
+		this.code = 500;
+	}
+
+	public BusinessException(Integer code, String message) {
+		super(message);
+		this.code = code;
+	}
+
 }

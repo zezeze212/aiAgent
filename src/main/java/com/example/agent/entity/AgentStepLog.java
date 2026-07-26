@@ -7,25 +7,26 @@ import java.time.LocalDateTime;
 @Data
 public class AgentStepLog {
 
-    private Long id;
+	private Long id;
 
-    private String traceId;
+	private String traceId;
 
-    private String stepName;
+	private String stepName;
 
-    private String description;
+	private String description;
 
-    private Integer success;
+	private Integer success;
 
-    private Long costMs;
+	private Long costMs;
 
-    private String inputText;
+	private String inputText;
 
-    private String outputText;
+	private String outputText;
 
-    private String errorMessage;
+	private String errorMessage;
 
-    private Integer stepOrder;
+	private Integer stepOrder;
 
-    private LocalDateTime createdTime;
+	private LocalDateTime createdTime;
+
 }

@@ -8,13 +8,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ToolExecutionResult {
-    private String toolName;
 
-    private Boolean success;
+	private String toolName;
 
-    private String result;
+	private Boolean success;
 
-    private String errorMessage;
+	private String result;
 
-    private Long costMs;
+	private String errorMessage;
+
+	private Long costMs;
+
 }

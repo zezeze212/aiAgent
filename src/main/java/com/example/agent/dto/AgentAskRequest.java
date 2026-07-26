@@ -5,5 +5,6 @@ import lombok.Data;
 @Data
 public class AgentAskRequest {
 
-    private String message;
+	private String message;
+
 }

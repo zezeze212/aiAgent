@@ -5,5 +5,6 @@ import lombok.Data;
 @Data
 public class ErrorAnalyzeRequest {
 
-    private String log;
+	private String log;
+
 }

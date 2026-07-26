@@ -11,11 +11,12 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ToolDecision {
 
-    private Boolean needTool;
+	private Boolean needTool;
 
-    private String toolName;
+	private String toolName;
 
-    private Map<String, Object> arguments;
+	private Map<String, Object> arguments;
 
-    private String directAnswer;
+	private String directAnswer;
+
 }

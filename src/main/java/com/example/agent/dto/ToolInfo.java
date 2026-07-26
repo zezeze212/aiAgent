@@ -9,9 +9,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ToolInfo {
 
-    private String name;
+	private String name;
 
-    private String description;
+	private String description;
 
-    private String parameterSchema;
+	private String parameterSchema;
+
 }

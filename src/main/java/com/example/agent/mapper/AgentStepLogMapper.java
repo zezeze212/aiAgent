@@ -7,7 +7,8 @@ import java.util.List;
 
 public interface AgentStepLogMapper {
 
-    int insert(AgentStepLog stepLog);
+	int insert(AgentStepLog stepLog);
 
-    List<AgentStepLog> selectByTraceId(@Param("traceId") String traceId);
+	List<AgentStepLog> selectByTraceId(@Param("traceId") String traceId);
+
 }

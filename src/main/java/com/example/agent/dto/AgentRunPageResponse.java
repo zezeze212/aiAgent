@@ -12,11 +12,12 @@ import java.util.List;
 @AllArgsConstructor
 public class AgentRunPageResponse {
 
-    private Integer pageNum;
+	private Integer pageNum;
 
-    private Integer pageSize;
+	private Integer pageSize;
 
-    private Long total;
+	private Long total;
 
-    private List<AgentRunListItemResponse> list;
+	private List<AgentRunListItemResponse> list;
+
 }

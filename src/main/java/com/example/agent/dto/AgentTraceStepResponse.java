@@ -9,23 +9,24 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AgentTraceStepResponse {
 
-    private Integer stepOrder;
+	private Integer stepOrder;
 
-    private String stepName;
+	private String stepName;
 
-    private String description;
+	private String description;
 
-    private Boolean success;
+	private Boolean success;
 
-    private Long costMs;
+	private Long costMs;
 
-    private String input;
+	private String input;
 
-    private String output;
+	private String output;
 
-    private Object inputView;
+	private Object inputView;
 
-    private Object outputView;
+	private Object outputView;
 
-    private String errorMessage;
+	private String errorMessage;
+
 }

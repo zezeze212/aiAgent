@@ -9,11 +9,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "deepseek")
 public class DeepSeekProperties {
 
-    private String apiKey;
+	private String apiKey;
 
-    private String baseUrl;
+	private String baseUrl;
 
-    private String model;
+	private String model;
 
-    private long timeoutMs = 30_000L;
+	private long timeoutMs = 30_000L;
+
 }
