@@ -1,8 +1,17 @@
 # ai-agent-demo
 
-一个基于 Spring Boot + DeepSeek API 的 Java 后端排障 Agent Demo。
+一个基于 Spring Boot + DeepSeek API 的 Java 后端故障诊断 Agent 项目。
 
 项目目标是模拟一个后端智能排障助手：用户输入 SQL / MyBatis / 数据库字段相关报错后，Agent 会先判断是否需要调用后端工具，再结合真实数据库表结构、错误证据和工具诊断结果生成排查建议，并记录完整调用链路。
+
+当前代码是同步 Agent 原型；长期目标是建设为“面向 Java 后端故障诊断的异步、证据驱动、可观测 AI Agent 应用”。规划功能不会提前写成已完成。
+
+项目文档入口：
+
+- [项目总纲与 M0～M8 路线](docs/PROJECT-OUTLINE.md)
+- [当前状态、测试结果与新对话交接](docs/CURRENT-STATUS.md)
+
+上述两份文档分别是长期规划和当前状态的权威来源。README 主要承担项目介绍、接口和演示说明。
 
 ## 一、项目定位
 
@@ -159,18 +168,6 @@ agent_step_log
 
 每个步骤会记录：
 
-
-- `id`：主键 ID；
-- `trace_id`：一次 Agent 请求追踪 ID；
-- `step_name`：步骤名称，例如 `AI_DECISION`、`TOOL_EXECUTION`、`AI_SUMMARY`、`AGENT_GUARD`；
-- `description`：步骤描述；
-- `success`：步骤是否成功；
-- `cost_ms`：步骤耗时；
-- `input_text`：步骤输入；
-- `output_text`：步骤输出；
-- `error_message`：错误信息；
-- `step_order`：步骤顺序；
-- `created_time`：创建时间。
 - `id`：主键 ID；
 - `trace_id`：一次 Agent 请求追踪 ID；
 - `step_name`：步骤名称，例如 `AI_DECISION`、`TOOL_EXECUTION`、`AI_SUMMARY`、`AGENT_GUARD`；
@@ -352,7 +349,9 @@ agent:
 - 本地通过环境变量配置 `DEEPSEEK_API_KEY`；
 - MySQL 密码也应通过环境变量配置。
 
-## 七、当前已完成阶段
+## 七、当前阶段
+
+以下 M1/M2 是项目早期已经完成的历史迭代名称。2026-08-02 起采用新的 M0～M8 长期路线，详见 [PROJECT-OUTLINE.md](docs/PROJECT-OUTLINE.md)，不要混用两套编号。
 
 ### M1：Agent 编排闭环
 
@@ -382,6 +381,13 @@ agent:
 - 缺失字段诊断；
 - 排查建议结构化输出；
 - 模型总结优先使用工具诊断结果。
+
+### 当前进行中：新路线 M0
+
+- 已有 5 类本地 Markdown 规则知识；
+- 已有工具成功后的知识检索和回填；
+- 正在完善首次 AI 决策前检索、工具后按需补充检索、知识去重和加载可靠性；
+- 以上未完成部分不能作为现有能力对外宣称。
 
 ## 八、演示路径
 
@@ -418,17 +424,6 @@ java.sql.SQLSyntaxErrorException: Unknown column 'theme_code' in 'field list'，
 
 ## 十、后续计划
 
-短期计划：
+后续开发不按功能清单并行堆叠，而是按照 [项目总纲](docs/PROJECT-OUTLINE.md) 的 M0～M8 顺序推进。
 
-- 补充 README 示例截图；
-- 补充 Postman 示例；
-- 增加关键单元测试；
-- 整理项目学习记录。
-
-可选扩展：
-
-- 增加 Mapper XML 分析工具；
-- 增加 SQL 片段分析工具；
-- 接入本地大模型或 OpenAI 兼容接口；
-- 增加简单前端页面；
-- 支持更多数据库错误类型。
+当前唯一入口任务是完成 M0：首次 AI 决策前知识检索、工具后按需补充检索以及相应调用顺序测试。当前真实状态、测试数量和接手步骤见 [CURRENT-STATUS.md](docs/CURRENT-STATUS.md)。
