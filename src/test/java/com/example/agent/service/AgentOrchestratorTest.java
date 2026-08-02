@@ -13,8 +13,10 @@ import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 
 class AgentOrchestratorTest {
 
@@ -68,9 +72,9 @@ class AgentOrchestratorTest {
 
 		assertEquals("Agent 检测到重复的工具调用，已停止继续执行。", response.getAnswer());
 
-		assertEquals(5, response.getSteps().size());
+		assertEquals(6, response.getSteps().size());
 
-		AgentTraceStep guardStep = response.getSteps().get(4);
+		AgentTraceStep guardStep = response.getSteps().get(5);
 
 		assertEquals("AGENT_GUARD", guardStep.getStepName());
 		assertFalse(guardStep.getSuccess());
@@ -102,9 +106,9 @@ class AgentOrchestratorTest {
 
 		assertEquals("Agent 已达到最大工具调用次数，已停止继续执行。", response.getAnswer());
 
-		assertEquals(11, response.getSteps().size());
+		assertEquals(12, response.getSteps().size());
 
-		AgentTraceStep guardStep = response.getSteps().get(10);
+		AgentTraceStep guardStep = response.getSteps().get(11);
 
 		assertEquals("AGENT_GUARD", guardStep.getStepName());
 		assertFalse(guardStep.getSuccess());
@@ -141,12 +145,68 @@ class AgentOrchestratorTest {
 
 		assertEquals("theme_code 字段在真实表结构中不存在。", response.getAnswer());
 
-		assertEquals(4, response.getSteps().size());
-		assertEquals("KNOWLEDGE_RETRIEVAL", response.getSteps().get(2).getStepName());
-		assertEquals("AI_SUMMARY", response.getSteps().get(3).getStepName());
+		assertEquals(5, response.getSteps().size());
+		assertEquals("KNOWLEDGE_RETRIEVAL", response.getSteps().get(0).getStepName());
+		assertEquals("KNOWLEDGE_RETRIEVAL", response.getSteps().get(3).getStepName());
+		assertEquals("AI_SUMMARY", response.getSteps().get(4).getStepName());
 
 		verify(decisionClient).appendToolResult(anyList(), eq("analyzeSqlErrorWithSchema"), anyMap(),
 				eq(successResult.getResult()), eq(knowledgeResult));
+	}
+
+	@Test
+	void shouldAppendKnowledgeBeforeInitialDecisionWhenMatched() {
+		String userMessage = "Unknown column 'status_code' in 'field list'";
+		List<Map<String, String>> messages = new ArrayList<>();
+
+		KnowledgeSearchResult knowledgeResult = KnowledgeSearchResult.found(
+				"docs/knowledge/sql-error-guide.md",
+				"遇到 Unknown column 时，应先核对 SQL 字段名和真实表结构。");
+
+		ToolDecision finalDecision = buildDirectAnswerDecision("建议先检查字段名和真实表结构。");
+
+		when(decisionClient.createDecisionMessages(userMessage)).thenReturn(messages);
+		when(ragRetriever.retrieve(userMessage)).thenReturn(knowledgeResult);
+		when(decisionClient.decide(messages)).thenReturn(finalDecision);
+
+		AgentAskResponse response = agentOrchestrator.execute(userMessage, "initial-rag-hit-trace");
+
+		assertEquals("建议先检查字段名和真实表结构。", response.getAnswer());
+		assertEquals(2, response.getSteps().size());
+		assertEquals("KNOWLEDGE_RETRIEVAL", response.getSteps().get(0).getStepName());
+		assertEquals("AI_DECISION", response.getSteps().get(1).getStepName());
+
+		InOrder inOrder = inOrder(decisionClient);
+		inOrder.verify(decisionClient).appendKnowledgeContext(messages, knowledgeResult);
+		inOrder.verify(decisionClient).decide(messages);
+
+		verify(toolRegistry, never()).executeWithResult(anyString(), anyMap());
+	}
+
+	@Test
+	void shouldContinueInitialDecisionWhenKnowledgeNotMatched() {
+		String userMessage = "应用查询数据库时报错";
+		List<Map<String, String>> messages = new ArrayList<>();
+
+		KnowledgeSearchResult knowledgeResult = KnowledgeSearchResult.notFound();
+		ToolDecision finalDecision = buildDirectAnswerDecision("请补充完整的错误日志和执行 SQL。");
+
+		when(decisionClient.createDecisionMessages(userMessage)).thenReturn(messages);
+		when(ragRetriever.retrieve(userMessage)).thenReturn(knowledgeResult);
+		when(decisionClient.decide(messages)).thenReturn(finalDecision);
+
+		AgentAskResponse response = agentOrchestrator.execute(userMessage, "initial-rag-miss-trace");
+
+		assertEquals("请补充完整的错误日志和执行 SQL。", response.getAnswer());
+		assertEquals(2, response.getSteps().size());
+		assertEquals("KNOWLEDGE_RETRIEVAL", response.getSteps().get(0).getStepName());
+		assertEquals("AI_DECISION", response.getSteps().get(1).getStepName());
+
+		InOrder inOrder = inOrder(decisionClient);
+		inOrder.verify(decisionClient).appendKnowledgeContext(messages, knowledgeResult);
+		inOrder.verify(decisionClient).decide(messages);
+
+		verify(toolRegistry, never()).executeWithResult(anyString(), anyMap());
 	}
 
 	private ToolDecision buildToolDecision(String toolName, Map<String, Object> arguments) {

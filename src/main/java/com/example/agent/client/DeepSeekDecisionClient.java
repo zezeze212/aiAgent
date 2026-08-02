@@ -48,6 +48,34 @@ public class DeepSeekDecisionClient {
 		return messages;
 	}
 
+	/**
+	 * 将首次决策前检索到的参考知识追加到对话上下文。
+	 *
+	 * 参考知识只提供通用排查经验，不能作为当前系统的真实证据。
+	 */
+	public void appendKnowledgeContext(List<Map<String, String>> messages, KnowledgeSearchResult knowledgeResult) {
+		if (knowledgeResult == null || !knowledgeResult.matched()) {
+			return;
+		}
+
+		messages.add(Map.of("role", "user", "content", """
+			以下内容是从本地知识库中检索到的通用排障知识：
+
+			知识来源：
+			%s
+
+			知识内容：
+			%s
+
+			请结合原始用户问题和上述参考知识进行首次决策。
+
+			使用规则：
+			1. 参考知识只提供通用排查经验，不代表当前系统的真实情况。
+			2. 如果需要确认真实表结构或其他确定性证据，仍然需要调用后端工具。
+			3. 不得仅根据参考知识编造当前数据库的字段、类型、长度或约束。
+			""".formatted(knowledgeResult.source(), knowledgeResult.content())));
+	}
+
 	public ToolDecision decide(List<Map<String, String>> messages) {
 		String content = callDeepSeek(messages);
 

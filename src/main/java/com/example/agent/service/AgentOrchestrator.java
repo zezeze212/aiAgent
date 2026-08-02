@@ -53,6 +53,10 @@ public class AgentOrchestrator {
 		// 保存一次 Agent 请求在循环过程中的可变状态。
 		AgentRunContext context = createContext(userMessage, traceId);
 
+		// 首次 AI 决策前，先根据原始用户问题检索知识并追加到上下文。
+		KnowledgeSearchResult initialKnowledgeResult = retrieveKnowledge(context, context.userMessage);
+		decisionClient.appendKnowledgeContext(context.messages, initialKnowledgeResult);
+
 		while (true) {
 			// 检测是否超时
 			GuardViolation timeoutViolation = checkExecutionTimeout(context);
@@ -106,7 +110,8 @@ public class AgentOrchestrator {
 				return finishWithToolFailure(context, toolResult);
 			}
 
-			KnowledgeSearchResult knowledgeResult = retrieveKnowledge(context);
+			String knowledgeQuery = context.userMessage + System.lineSeparator() + context.lastToolResult;
+			KnowledgeSearchResult knowledgeResult = retrieveKnowledge(context, knowledgeQuery);
 
 			/*
 			 * 工具成功后，将真实证据和检索到的参考知识放回原对话。 下一轮 AI 可以直接回答，也可以继续调用其他工具。
@@ -117,21 +122,23 @@ public class AgentOrchestrator {
 	}
 
 	/**
-	 * 使用原始问题和最新工具结果检索本地知识。
-	 *
-	 * 工具结果也参与检索，避免用户没有直接写出错误类型时漏掉知识。
+	 * 根据指定查询内容检索本地知识，并记录检索步骤。
 	 */
-	private KnowledgeSearchResult retrieveKnowledge(AgentRunContext context) {
+	private KnowledgeSearchResult retrieveKnowledge(AgentRunContext context, String query) {
 		long startTime = System.currentTimeMillis();
-
-		String query = context.userMessage + System.lineSeparator() + context.lastToolResult;
 
 		try {
 			KnowledgeSearchResult result = ragRetriever.retrieve(query);
 			long costMs = System.currentTimeMillis() - startTime;
 
-			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", result.matched() ? "检索到相关本地知识" : "未检索到相关本地知识",
-					true, costMs, query, toJsonSafely(result), null));
+			context.steps.add(new AgentTraceStep(
+					"KNOWLEDGE_RETRIEVAL",
+					result.matched() ? "检索到相关本地知识" : "未检索到相关本地知识",
+					true,
+					costMs,
+					query,
+					toJsonSafely(result),
+					null));
 
 			return result;
 		}
@@ -139,7 +146,13 @@ public class AgentOrchestrator {
 			long costMs = System.currentTimeMillis() - startTime;
 			String errorMessage = "本地知识检索失败：" + e.getMessage();
 
-			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", "本地知识检索失败，继续使用工具证据", false, costMs, query, null,
+			context.steps.add(new AgentTraceStep(
+					"KNOWLEDGE_RETRIEVAL",
+					"本地知识检索失败，继续执行 Agent 决策",
+					false,
+					costMs,
+					query,
+					null,
 					errorMessage));
 
 			log.warn("Agent 本地知识检索失败，traceId={}", context.traceId, e);
