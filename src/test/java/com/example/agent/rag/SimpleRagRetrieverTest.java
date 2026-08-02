@@ -17,7 +17,60 @@ class SimpleRagRetrieverTest {
 		KnowledgeSearchResult result = retriever.retrieve("Unknown column 'theme_code' in 'field list'");
 
 		assertTrue(result.matched());
-		assertEquals("docs/knowledge/sql-error-guide.md", result.source());
+		assertEquals("docs/knowledge/sql/unknown-column.md", result.source());
+		assertNotNull(result.content());
+		assertTrue(result.content().contains("排查顺序"));
+	}
+
+	@Test
+	void shouldReturnKnowledgeWhenTableDoesntExist() {
+		KnowledgeSearchResult result = retriever.retrieve("Table doesn't exist");
+
+		assertTrue(result.matched());
+		assertEquals("docs/knowledge/sql/table-not-exist.md", result.source());
+		assertNotNull(result.content());
+		assertTrue(result.content().contains("排查顺序"));
+	}
+
+	@Test
+	void shouldReturnKnowledgeWhenQueryContainsDuplicateEntry() {
+		KnowledgeSearchResult result = retriever.retrieve("Duplicate entry");
+
+		assertTrue(result.matched());
+		assertEquals("docs/knowledge/sql/duplicate-entry.md", result.source());
+		assertNotNull(result.content());
+		assertTrue(result.content().contains("排查顺序"));
+	}
+
+	@Test
+	void shouldReturnKnowledgeWhenQueryContainsDataTooLong() {
+		KnowledgeSearchResult result = retriever.retrieve("Data too long");
+
+		assertTrue(result.matched());
+		assertEquals("docs/knowledge/sql/data-too-long.md", result.source());
+		assertNotNull(result.content());
+		assertTrue(result.content().contains("排查顺序"));
+	}
+
+	@Test
+	void shouldReturnKnowledgeWhenQueryContainsForeignKey() {
+		KnowledgeSearchResult result = retriever.retrieve("Foreign key constraint");
+
+		assertTrue(result.matched());
+		assertEquals("docs/knowledge/sql/foreign-key-constraint.md", result.source());
+		assertNotNull(result.content());
+		assertTrue(result.content().contains("排查顺序"));
+	}
+
+	@Test
+	void shouldReturnKnowledgeWhenToolResultContainsSqlError() {
+		KnowledgeSearchResult result = retriever.retrieve(
+				"帮我分析这个 SQL 报错",
+				"MySQL 提示 Unknown column 'theme_code' in 'field list'"
+		);
+
+		assertTrue(result.matched());
+		assertEquals("docs/knowledge/sql/unknown-column.md", result.source());
 		assertNotNull(result.content());
 		assertTrue(result.content().contains("排查顺序"));
 	}
