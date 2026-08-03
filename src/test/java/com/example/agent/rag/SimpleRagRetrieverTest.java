@@ -64,10 +64,8 @@ class SimpleRagRetrieverTest {
 
 	@Test
 	void shouldReturnKnowledgeWhenToolResultContainsSqlError() {
-		KnowledgeSearchResult result = retriever.retrieve(
-				"帮我分析这个 SQL 报错",
-				"MySQL 提示 Unknown column 'theme_code' in 'field list'"
-		);
+		KnowledgeSearchResult result = retriever.retrieve("帮我分析这个 SQL 报错",
+				"MySQL 提示 Unknown column 'theme_code' in 'field list'");
 
 		assertTrue(result.matched());
 		assertEquals("docs/knowledge/sql/unknown-column.md", result.source());

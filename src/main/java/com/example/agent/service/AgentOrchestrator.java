@@ -10,17 +10,13 @@ import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.ToolRegistry;
 import com.example.agent.rag.KnowledgeSearchResult;
 import com.example.agent.rag.SimpleRagRetriever;
+import com.example.agent.dto.KnowledgeRetrievalPhase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * Agent 核心编排器。
@@ -54,8 +50,10 @@ public class AgentOrchestrator {
 		AgentRunContext context = createContext(userMessage, traceId);
 
 		// 首次 AI 决策前，先根据原始用户问题检索知识并追加到上下文。
-		KnowledgeSearchResult initialKnowledgeResult = retrieveKnowledge(context, context.userMessage);
+		KnowledgeSearchResult initialKnowledgeResult = retrieveKnowledge(context, context.userMessage,
+				KnowledgeRetrievalPhase.PRE_DECISION);
 		decisionClient.appendKnowledgeContext(context.messages, initialKnowledgeResult);
+		rememberInjectedKnowledge(context, initialKnowledgeResult);
 
 		while (true) {
 			// 检测是否超时
@@ -110,8 +108,7 @@ public class AgentOrchestrator {
 				return finishWithToolFailure(context, toolResult);
 			}
 
-			String knowledgeQuery = context.userMessage + System.lineSeparator() + context.lastToolResult;
-			KnowledgeSearchResult knowledgeResult = retrieveKnowledge(context, knowledgeQuery);
+			KnowledgeSearchResult knowledgeResult = retrievePostToolKnowledge(context, initialKnowledgeResult);
 
 			/*
 			 * 工具成功后，将真实证据和检索到的参考知识放回原对话。 下一轮 AI 可以直接回答，也可以继续调用其他工具。
@@ -122,23 +119,20 @@ public class AgentOrchestrator {
 	}
 
 	/**
-	 * 根据指定查询内容检索本地知识，并记录检索步骤。
+	 * 根据指定内容检索本地知识，并记录检索阶段和执行结果。
 	 */
-	private KnowledgeSearchResult retrieveKnowledge(AgentRunContext context, String query) {
+	private KnowledgeSearchResult retrieveKnowledge(AgentRunContext context, String query,
+			KnowledgeRetrievalPhase phase) {
 		long startTime = System.currentTimeMillis();
 
 		try {
 			KnowledgeSearchResult result = ragRetriever.retrieve(query);
 			long costMs = System.currentTimeMillis() - startTime;
 
-			context.steps.add(new AgentTraceStep(
-					"KNOWLEDGE_RETRIEVAL",
-					result.matched() ? "检索到相关本地知识" : "未检索到相关本地知识",
-					true,
-					costMs,
-					query,
-					toJsonSafely(result),
-					null));
+			String description = result.matched() ? phase.name() + "：检索到相关本地知识" : phase.name() + "：未检索到相关本地知识";
+
+			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", description, true, costMs, query,
+					toJsonSafely(result), null));
 
 			return result;
 		}
@@ -146,19 +140,78 @@ public class AgentOrchestrator {
 			long costMs = System.currentTimeMillis() - startTime;
 			String errorMessage = "本地知识检索失败：" + e.getMessage();
 
-			context.steps.add(new AgentTraceStep(
-					"KNOWLEDGE_RETRIEVAL",
-					"本地知识检索失败，继续执行 Agent 决策",
-					false,
-					costMs,
-					query,
-					null,
-					errorMessage));
+			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", phase.name() + "：本地知识检索失败，继续执行 Agent 决策", false,
+					costMs, query, null, errorMessage));
 
-			log.warn("Agent 本地知识检索失败，traceId={}", context.traceId, e);
+			log.warn("Agent 本地知识检索失败，traceId={}, phase={}", context.traceId, phase, e);
 
 			return KnowledgeSearchResult.notFound();
 		}
+	}
+
+	/**
+	 * 工具执行成功后按需补充检索知识。
+	 *
+	 * 首次决策前已经命中知识时，当前规则不再重复检索； 首次未命中时，结合用户问题和工具结果再次检索。
+	 */
+	private KnowledgeSearchResult retrievePostToolKnowledge(AgentRunContext context,
+			KnowledgeSearchResult preDecisionKnowledgeResult) {
+
+		String query = context.userMessage + System.lineSeparator() + context.lastToolResult;
+
+		if (preDecisionKnowledgeResult != null && preDecisionKnowledgeResult.matched()) {
+
+			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", "POST_TOOL：PRE_DECISION 已命中知识，跳过补充检索", true, 0L,
+					query, null, null));
+
+			return KnowledgeSearchResult.notFound();
+		}
+
+		KnowledgeSearchResult knowledgeResult = retrieveKnowledge(context, query, KnowledgeRetrievalPhase.POST_TOOL);
+
+		return filterRepeatedKnowledge(context, knowledgeResult);
+	}
+
+	/**
+	 * 记录首次决策前已经注入的知识。
+	 */
+	private void rememberInjectedKnowledge(AgentRunContext context, KnowledgeSearchResult knowledgeResult) {
+
+		if (knowledgeResult == null || !knowledgeResult.matched()) {
+			return;
+		}
+
+		context.injectedKnowledgeKeys.add(buildKnowledgeKey(knowledgeResult));
+	}
+
+	/**
+	 * 过滤当前 Agent 运行过程中已经注入过的知识。
+	 */
+	private KnowledgeSearchResult filterRepeatedKnowledge(AgentRunContext context,
+			KnowledgeSearchResult knowledgeResult) {
+
+		if (knowledgeResult == null || !knowledgeResult.matched()) {
+			return knowledgeResult;
+		}
+
+		String knowledgeKey = buildKnowledgeKey(knowledgeResult);
+
+		if (context.injectedKnowledgeKeys.add(knowledgeKey)) {
+			return knowledgeResult;
+		}
+
+		context.steps.add(new AgentTraceStep("KNOWLEDGE_DEDUPLICATION", "POST_TOOL：命中知识已经注入，跳过重复追加", true, 0L,
+				knowledgeResult.source(), toJsonSafely(knowledgeResult), null));
+
+		return KnowledgeSearchResult.notFound();
+	}
+
+	/**
+	 * 使用知识来源和内容共同生成运行期去重标识。
+	 */
+	private String buildKnowledgeKey(KnowledgeSearchResult knowledgeResult) {
+		return Objects.toString(knowledgeResult.source(), "") + System.lineSeparator()
+				+ Objects.toString(knowledgeResult.content(), "");
 	}
 
 	private AgentAskResponse finishWithDecisionFailure(AgentRunContext context, TimedDecision timedDecision) {
@@ -389,6 +442,11 @@ public class AgentOrchestrator {
 		private String lastToolName;
 
 		private String lastToolResult;
+
+		/**
+		 * 当前 Agent 运行过程中已经注入模型上下文的知识。
+		 */
+		private final Set<String> injectedKnowledgeKeys = new HashSet<>();
 
 		private AgentRunContext(String userMessage, String traceId, List<Map<String, String>> messages) {
 			this.userMessage = userMessage;

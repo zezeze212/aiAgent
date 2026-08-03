@@ -1,11 +1,12 @@
 package com.example.agent.rag;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
@@ -16,27 +17,13 @@ import java.util.Locale;
 public class SimpleRagRetriever {
 
 	private static final List<KnowledgeRule> RULES = List.of(
-			new KnowledgeRule(
-					List.of("unknown column", "未知列", "字段不存在"),
-					"docs/knowledge/sql/unknown-column.md"
-			),
-			new KnowledgeRule(
-					List.of("table doesn't exist", "table does not exist", "表不存在"),
-					"docs/knowledge/sql/table-not-exist.md"
-			),
-			new KnowledgeRule(
-					List.of("duplicate entry", "重复键", "唯一键冲突"),
-					"docs/knowledge/sql/duplicate-entry.md"
-			),
-			new KnowledgeRule(
-					List.of("data too long", "数据过长", "字段长度"),
-					"docs/knowledge/sql/data-too-long.md"
-			),
-			new KnowledgeRule(
-					List.of("foreign key constraint", "cannot delete or update parent row", "外键约束"),
-					"docs/knowledge/sql/foreign-key-constraint.md"
-			)
-	);
+			new KnowledgeRule(List.of("unknown column", "未知列", "字段不存在"), "docs/knowledge/sql/unknown-column.md"),
+			new KnowledgeRule(List.of("table doesn't exist", "table does not exist", "表不存在"),
+					"docs/knowledge/sql/table-not-exist.md"),
+			new KnowledgeRule(List.of("duplicate entry", "重复键", "唯一键冲突"), "docs/knowledge/sql/duplicate-entry.md"),
+			new KnowledgeRule(List.of("data too long", "数据过长", "字段长度"), "docs/knowledge/sql/data-too-long.md"),
+			new KnowledgeRule(List.of("foreign key constraint", "cannot delete or update parent row", "外键约束"),
+					"docs/knowledge/sql/foreign-key-constraint.md"));
 
 	/**
 	 * 根据用户问题检索相关知识。
@@ -80,21 +67,30 @@ public class SimpleRagRetriever {
 	}
 
 	private String buildQuery(String userMessage, String toolResult) {
-		return (safeText(userMessage) + "\n" + safeText(toolResult)).trim();
+		return (safeText(userMessage) + System.lineSeparator() + safeText(toolResult)).trim();
 	}
 
 	private String safeText(String text) {
 		return text == null ? "" : text;
 	}
 
+	/**
+	 * 从应用 classpath 中读取知识文档。
+	 */
 	private KnowledgeSearchResult readKnowledge(KnowledgeRule rule) {
-		try {
-			String content = Files.readString(Path.of(rule.source()), StandardCharsets.UTF_8);
+		Resource resource = new ClassPathResource(rule.source());
+
+		if (!resource.exists()) {
+			throw new IllegalStateException("知识文档不存在，classpath=" + rule.source());
+		}
+
+		try (InputStream inputStream = resource.getInputStream()) {
+			String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
 
 			return KnowledgeSearchResult.found(rule.source(), content);
 		}
 		catch (IOException e) {
-			throw new IllegalStateException("读取知识文档失败，path=" + rule.source(), e);
+			throw new IllegalStateException("读取知识文档失败，classpath=" + rule.source(), e);
 		}
 	}
 

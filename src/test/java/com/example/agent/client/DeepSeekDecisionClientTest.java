@@ -19,47 +19,42 @@ import static org.mockito.Mockito.mock;
 
 class DeepSeekDecisionClientTest {
 
-    private DeepSeekDecisionClient decisionClient;
+	private DeepSeekDecisionClient decisionClient;
 
-    @BeforeEach
-    void setUp() {
-        decisionClient = new DeepSeekDecisionClient(
-                mock(WebClient.class),
-                mock(DeepSeekProperties.class),
-                mock(ObjectMapper.class),
-                mock(ToolRegistry.class),
-                mock(ToolDecisionValidator.class));
-    }
+	@BeforeEach
+	void setUp() {
+		decisionClient = new DeepSeekDecisionClient(mock(WebClient.class), mock(DeepSeekProperties.class),
+				mock(ObjectMapper.class), mock(ToolRegistry.class), mock(ToolDecisionValidator.class));
+	}
 
-    @Test
-    void shouldAppendKnowledgeContextWhenKnowledgeMatched() {
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "user", "content", "Unknown column 'status_code'"));
+	@Test
+	void shouldAppendKnowledgeContextWhenKnowledgeMatched() {
+		List<Map<String, String>> messages = new ArrayList<>();
+		messages.add(Map.of("role", "user", "content", "Unknown column 'status_code'"));
 
-        KnowledgeSearchResult knowledgeResult = KnowledgeSearchResult.found(
-                "docs/knowledge/sql-error-guide.md",
-                "遇到 Unknown column 时，应核对 SQL 字段名和真实表结构。");
+		KnowledgeSearchResult knowledgeResult = KnowledgeSearchResult.found("docs/knowledge/sql-error-guide.md",
+				"遇到 Unknown column 时，应核对 SQL 字段名和真实表结构。");
 
-        decisionClient.appendKnowledgeContext(messages, knowledgeResult);
+		decisionClient.appendKnowledgeContext(messages, knowledgeResult);
 
-        assertEquals(2, messages.size());
+		assertEquals(2, messages.size());
 
-        Map<String, String> knowledgeMessage = messages.get(1);
-        String content = knowledgeMessage.get("content");
-        assertTrue(content.contains("docs/knowledge/sql-error-guide.md"), content);
-        assertTrue(content.contains("应核对 SQL 字段名和真实表结构"), content);
-        assertTrue(content.contains("不代表当前系统的真实情况"), content);
-    }
+		Map<String, String> knowledgeMessage = messages.get(1);
+		String content = knowledgeMessage.get("content");
+		assertTrue(content.contains("docs/knowledge/sql-error-guide.md"), content);
+		assertTrue(content.contains("应核对 SQL 字段名和真实表结构"), content);
+		assertTrue(content.contains("不代表当前系统的真实情况"), content);
+	}
 
-    @Test
-    void shouldNotAppendKnowledgeContextWhenKnowledgeNotMatched() {
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "user", "content", "应用查询数据库时报错"));
+	@Test
+	void shouldNotAppendKnowledgeContextWhenKnowledgeNotMatched() {
+		List<Map<String, String>> messages = new ArrayList<>();
+		messages.add(Map.of("role", "user", "content", "应用查询数据库时报错"));
 
-        decisionClient.appendKnowledgeContext(messages, KnowledgeSearchResult.notFound());
+		decisionClient.appendKnowledgeContext(messages, KnowledgeSearchResult.notFound());
 
-        assertEquals(1, messages.size());
-        assertEquals("应用查询数据库时报错", messages.get(0).get("content"));
-    }
+		assertEquals(1, messages.size());
+		assertEquals("应用查询数据库时报错", messages.get(0).get("content"));
+	}
 
 }
