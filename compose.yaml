@@ -1,0 +1,36 @@
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:${AI_AGENT_DB_PORT:-3307}:3306"
+
+    environment:
+      MYSQL_DATABASE: "${AI_AGENT_DB_NAME:-ai_agent}"
+      MYSQL_USER: "${AI_AGENT_DB_USERNAME:-ai_agent}"
+      MYSQL_PASSWORD: "${AI_AGENT_DB_PASSWORD:?Set AI_AGENT_DB_PASSWORD in .env}"
+      MYSQL_ROOT_PASSWORD: "${AI_AGENT_DB_ROOT_PASSWORD:?Set AI_AGENT_DB_ROOT_PASSWORD in .env}"
+      TZ: "Asia/Shanghai"
+
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_0900_ai_ci"
+      - "--default-time-zone=+08:00"
+
+    volumes:
+      - ai_agent_mysql_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  ai_agent_mysql_data:

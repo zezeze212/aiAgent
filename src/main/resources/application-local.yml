@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: "${AI_AGENT_DB_URL:jdbc:mysql://localhost:3307/ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}"
+    username: "${AI_AGENT_DB_USERNAME:ai_agent}"
+    password: "${AI_AGENT_DB_PASSWORD}"
+    driver-class-name: com.mysql.cj.jdbc.Driver

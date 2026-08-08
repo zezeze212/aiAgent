@@ -6,10 +6,10 @@ import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
 import com.example.agent.support.AgentJsonHelper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,6 +26,7 @@ public class AgentLogService {
 
 	private final AgentJsonHelper agentJsonHelper;
 
+	@Transactional(rollbackFor = Exception.class)
 	public void saveRunLog(String userMessage, AgentAskResponse response) {
 		if (response == null) {
 			return;
