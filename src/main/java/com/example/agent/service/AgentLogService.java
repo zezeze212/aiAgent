@@ -1,6 +1,13 @@
 package com.example.agent.service;
 
-import com.example.agent.dto.*;
+import com.example.agent.dto.AgentAskResponse;
+import com.example.agent.dto.AgentRunDetailResponse;
+import com.example.agent.dto.AgentRunListItemResponse;
+import com.example.agent.dto.AgentRunPageResponse;
+import com.example.agent.dto.AgentRunResponse;
+import com.example.agent.dto.AgentRunStatsResponse;
+import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.AgentTraceStepResponse;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
@@ -28,42 +35,60 @@ public class AgentLogService {
 
 	@Transactional(rollbackFor = Exception.class)
 	public void saveRunLog(String userMessage, AgentAskResponse response) {
+
 		if (response == null) {
 			return;
 		}
 
 		saveAgentRun(userMessage, response);
+
 		saveAgentSteps(response.getTraceId(), response.getSteps());
 	}
 
 	private void saveAgentRun(String userMessage, AgentAskResponse response) {
+
 		AgentRunLog runLog = new AgentRunLog();
 
 		runLog.setTraceId(response.getTraceId());
+
 		runLog.setUserMessage(userMessage);
+
 		runLog.setAnswer(response.getAnswer());
+
 		runLog.setUsedTool(Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0);
+
 		runLog.setToolName(response.getToolName());
+
 		runLog.setToolResult(agentJsonHelper.serializeForStorage(response.getToolResult()));
+
 		runLog.setDecisionCostMs(response.getDecisionCostMs());
+
 		runLog.setToolCostMs(response.getToolCostMs());
+
 		runLog.setSummaryCostMs(response.getSummaryCostMs());
+
 		runLog.setAgentCostMs(response.getAgentCostMs());
 
 		int runSuccess = 1;
 		String runErrorMessage = null;
+
 		List<AgentTraceStep> steps = response.getSteps();
 
 		if (steps != null) {
 			for (AgentTraceStep step : steps) {
 				if (!Boolean.TRUE.equals(step.getSuccess())) {
+
 					runSuccess = 0;
+
 					runErrorMessage = step.getErrorMessage();
+
 					break;
 				}
 			}
 		}
+
 		runLog.setSuccess(runSuccess);
+
 		runLog.setErrorMessage(runErrorMessage);
 
 		agentRunLogMapper.insert(runLog);
@@ -72,22 +97,38 @@ public class AgentLogService {
 	}
 
 	private void saveAgentSteps(String traceId, List<AgentTraceStep> steps) {
+
 		if (steps == null || steps.isEmpty()) {
+
 			return;
 		}
 
 		for (int i = 0; i < steps.size(); i++) {
+
 			AgentTraceStep step = steps.get(i);
 
 			AgentStepLog stepLog = new AgentStepLog();
+
 			stepLog.setTraceId(traceId);
+
 			stepLog.setStepName(step.getStepName());
+
 			stepLog.setDescription(step.getDescription());
+
 			stepLog.setSuccess(Boolean.TRUE.equals(step.getSuccess()) ? 1 : 0);
+
+			stepLog.setToolStatus(step.getToolStatus() == null ? null : step.getToolStatus().name());
+
+			stepLog.setErrorCode(step.getErrorCode());
+
 			stepLog.setCostMs(step.getCostMs());
+
 			stepLog.setInputText(step.getInput());
+
 			stepLog.setOutputText(step.getOutput());
+
 			stepLog.setErrorMessage(step.getErrorMessage());
+
 			stepLog.setStepOrder(i + 1);
 
 			agentStepLogMapper.insert(stepLog);
@@ -98,11 +139,14 @@ public class AgentLogService {
 
 	public AgentRunPageResponse getRunPage(Integer pageNum, Integer pageSize, String toolName, Integer success,
 			LocalDateTime startTime, LocalDateTime endTime) {
+
 		if (pageNum == null || pageNum < 1) {
+
 			pageNum = 1;
 		}
 
 		if (pageSize == null || pageSize < 1) {
+
 			pageSize = 10;
 		}
 
@@ -111,6 +155,7 @@ public class AgentLogService {
 		}
 
 		if (toolName != null && toolName.isBlank()) {
+
 			toolName = null;
 		}
 
@@ -126,7 +171,9 @@ public class AgentLogService {
 	}
 
 	private List<AgentRunListItemResponse> buildRunListItemResponses(List<AgentRunLog> runLogs) {
+
 		if (runLogs == null || runLogs.isEmpty()) {
+
 			return List.of();
 		}
 
@@ -140,6 +187,7 @@ public class AgentLogService {
 	}
 
 	private AgentRunListItemResponse buildRunListItemResponse(AgentRunLog runLog) {
+
 		return new AgentRunListItemResponse(runLog.getId(), runLog.getTraceId(),
 				buildSummary(runLog.getUserMessage(), 120), buildSummary(runLog.getAnswer(), 120),
 				toBoolean(runLog.getUsedTool()), runLog.getToolName(), runLog.getDecisionCostMs(),
@@ -148,13 +196,16 @@ public class AgentLogService {
 	}
 
 	private String buildSummary(String text, int maxLength) {
+
 		if (text == null || text.isBlank()) {
+
 			return text;
 		}
 
 		String cleanText = text.replace("\r", "").replace("\n", " ").replace("\\n", " ").trim();
 
 		if (cleanText.length() <= maxLength) {
+
 			return cleanText;
 		}
 
@@ -162,6 +213,7 @@ public class AgentLogService {
 	}
 
 	public AgentRunDetailResponse getRunDetail(String traceId) {
+
 		AgentRunLog run = agentRunLogMapper.selectByTraceId(traceId);
 
 		if (run == null) {
@@ -174,6 +226,7 @@ public class AgentLogService {
 	}
 
 	private List<AgentTraceStepResponse> buildStepResponses(List<AgentStepLog> steps) {
+
 		if (steps == null) {
 			return null;
 		}
@@ -188,6 +241,7 @@ public class AgentLogService {
 	}
 
 	private AgentRunResponse buildRunResponse(AgentRunLog run) {
+
 		if (run == null) {
 			return null;
 		}
@@ -200,6 +254,7 @@ public class AgentLogService {
 	}
 
 	private Boolean toBoolean(Integer value) {
+
 		if (value == null) {
 			return null;
 		}
@@ -208,15 +263,29 @@ public class AgentLogService {
 	}
 
 	private AgentTraceStepResponse buildStepResponse(AgentStepLog step) {
+
 		return new AgentTraceStepResponse(step.getStepOrder(), step.getStepName(), step.getDescription(),
 				Integer.valueOf(1).equals(step.getSuccess()), step.getCostMs(), step.getInputText(),
 				step.getOutputText(), agentJsonHelper.parseJsonIfPossible(step.getInputText()),
-				agentJsonHelper.parseJsonIfPossible(step.getOutputText()), step.getErrorMessage());
+				agentJsonHelper.parseJsonIfPossible(step.getOutputText()), parseToolStatus(step.getToolStatus()),
+				step.getErrorCode(), step.getErrorMessage());
+	}
+
+	private com.example.agent.tool.ToolExecutionStatus parseToolStatus(String toolStatus) {
+
+		if (toolStatus == null || toolStatus.isBlank()) {
+
+			return null;
+		}
+
+		return com.example.agent.tool.ToolExecutionStatus.valueOf(toolStatus);
 	}
 
 	public AgentRunStatsResponse getRunStats(String toolName, Integer success, LocalDateTime startTime,
 			LocalDateTime endTime) {
+
 		if (toolName != null && toolName.isBlank()) {
+
 			toolName = null;
 		}
 
@@ -224,15 +293,18 @@ public class AgentLogService {
 
 		if (stats == null) {
 			stats = new AgentRunStatsResponse();
+
 			stats.setTotal(0L);
 			stats.setSuccessCount(0L);
 			stats.setFailedCount(0L);
 			stats.setSuccessRate(0.0);
 			stats.setToolStats(List.of());
+
 			return stats;
 		}
 
 		Long total = stats.getTotal() == null ? 0L : stats.getTotal();
+
 		Long successCount = stats.getSuccessCount() == null ? 0L : stats.getSuccessCount();
 
 		if (total == 0) {
@@ -240,6 +312,7 @@ public class AgentLogService {
 		}
 		else {
 			double successRate = successCount * 100.0 / total;
+
 			stats.setSuccessRate(Math.round(successRate * 100.0) / 100.0);
 		}
 

@@ -5,22 +5,32 @@ import java.util.Map;
 public interface AgentTool {
 
 	/**
-	 * 工具名称，必须和 AI 返回的 toolName 一致
+	 * 工具的统一机器可读契约。
 	 */
-	String name();
+	ToolDefinition definition();
 
 	/**
-	 * 工具描述，告诉 AI 这个工具能干什么
+	 * 工具名称。
+	 *
+	 * 名称直接来自 ToolDefinition，避免工具名称存在两份定义。
 	 */
-	String description();
+	default String name() {
+		return definition().name();
+	}
 
 	/**
-	 * 参数格式，告诉 AI arguments 应该怎么传
+	 * 工具描述。
+	 *
+	 * 描述直接来自 ToolDefinition，避免描述信息重复维护。
 	 */
-	String parameterSchema();
+	default String description() {
+		return definition().description();
+	}
 
 	/**
-	 * 执行工具
+	 * 执行工具。
+	 *
+	 * 正常情况下 arguments 已经经过 ToolRegistry 的统一参数校验。
 	 */
 	String execute(Map<String, Object> arguments);
 

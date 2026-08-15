@@ -24,311 +24,165 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
-@SpringBootTest(
-        classes = DatabaseToolMySqlContainerTest.DatabaseToolTestApplication.class,
-        properties = {
-                "spring.main.web-application-type=none",
-                "spring.flyway.enabled=true",
-                "spring.flyway.locations=classpath:db/migration"
-        }
-)
+@SpringBootTest(classes = DatabaseToolMySqlContainerTest.DatabaseToolTestApplication.class,
+		properties = { "spring.main.web-application-type=none", "spring.flyway.enabled=true",
+				"spring.flyway.locations=classpath:db/migration" })
 class DatabaseToolMySqlContainerTest {
 
-    @Container
-    private static final MySQLContainer<?> MYSQL =
-            new MySQLContainer<>(
-                    DockerImageName.parse("mysql:8.4.11")
-            )
-                    .withDatabaseName("ai_agent")
-                    .withUsername("ai_agent")
-                    .withPassword("test_password")
-                    .withCommand(
-                            "--character-set-server=utf8mb4",
-                            "--collation-server=utf8mb4_0900_ai_ci",
-                            "--default-time-zone=+08:00"
-                    );
+	@Container
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4.11"))
+		.withDatabaseName("ai_agent")
+		.withUsername("ai_agent")
+		.withPassword("test_password")
+		.withCommand("--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci",
+				"--default-time-zone=+08:00");
 
-    @DynamicPropertySource
-    static void registerDatabaseProperties(
-            DynamicPropertyRegistry registry
-    ) {
-        registry.add(
-                "spring.datasource.url",
-                MYSQL::getJdbcUrl
-        );
-        registry.add(
-                "spring.datasource.username",
-                MYSQL::getUsername
-        );
-        registry.add(
-                "spring.datasource.password",
-                MYSQL::getPassword
-        );
-        registry.add(
-                "spring.datasource.driver-class-name",
-                MYSQL::getDriverClassName
-        );
-    }
+	@DynamicPropertySource
+	static void registerDatabaseProperties(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+		registry.add("spring.datasource.username", MYSQL::getUsername);
+		registry.add("spring.datasource.password", MYSQL::getPassword);
+		registry.add("spring.datasource.driver-class-name", MYSQL::getDriverClassName);
+	}
 
-    @Autowired
-    private GetTableSchemaTool getTableSchemaTool;
+	@Autowired
+	private GetTableSchemaTool getTableSchemaTool;
 
-    @Autowired
-    private AnalyzeSqlErrorWithSchemaTool
-            analyzeSqlErrorWithSchemaTool;
+	@Autowired
+	private AnalyzeSqlErrorWithSchemaTool analyzeSqlErrorWithSchemaTool;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+	@Autowired
+	private ObjectMapper objectMapper;
 
-    /**
-     * 只加载数据库、Flyway、JdbcTemplate、JSON 组件和两个数据库工具。
-     *
-     * 不加载 Agent 编排器和模型客户端，因此：
-     * 1. 不需要 DeepSeek API Key；
-     * 2. 不会调用外部模型；
-     * 3. 测试结果只反映数据库工具本身的行为。
-     */
-    @SpringBootConfiguration(proxyBeanMethods = false)
-    @EnableAutoConfiguration
-    @Import({
-            GetTableSchemaTool.class,
-            AnalyzeSqlErrorWithSchemaTool.class,
-            SqlErrorEvidenceExtractor.class
-    })
-    static class DatabaseToolTestApplication {
-    }
+	/**
+	 * 只加载数据库、Flyway、JdbcTemplate、JSON 组件和两个数据库工具。
+	 *
+	 * 不加载 Agent 编排器和模型客户端，因此： 1. 不需要 DeepSeek API Key； 2. 不会调用外部模型； 3. 测试结果只反映数据库工具本身的行为。
+	 */
+	@SpringBootConfiguration(proxyBeanMethods = false)
+	@EnableAutoConfiguration
+	@Import({ GetTableSchemaTool.class, AnalyzeSqlErrorWithSchemaTool.class, SqlErrorEvidenceExtractor.class })
+	static class DatabaseToolTestApplication {
 
-    @Test
-    void shouldQueryRealTableSchemaFromInformationSchema()
-            throws Exception {
+	}
 
-        String result = getTableSchemaTool.execute(
-                Map.of(
-                        "tableName",
-                        "agent_run_log"
-                )
-        );
+	@Test
+	void shouldQueryRealTableSchemaFromInformationSchema() throws Exception {
 
-        JsonNode columns = objectMapper.readTree(result);
+		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_run_log"));
 
-        assertThat(columns.isArray()).isTrue();
-        assertThat(columns.size()).isGreaterThanOrEqualTo(14);
+		JsonNode columns = objectMapper.readTree(result);
 
-        JsonNode idColumn = columns.get(0);
+		assertThat(columns.isArray()).isTrue();
+		assertThat(columns.size()).isGreaterThanOrEqualTo(14);
 
-        assertThat(
-                idColumn.path("columnName").asText()
-        ).isEqualTo("id");
+		JsonNode idColumn = columns.get(0);
 
-        assertThat(
-                idColumn.path("columnType").asText()
-        ).contains("bigint");
+		assertThat(idColumn.path("columnName").asText()).isEqualTo("id");
 
-        assertThat(
-                idColumn.path("nullable").asText()
-        ).isEqualTo("NO");
+		assertThat(idColumn.path("columnType").asText()).contains("bigint");
 
-        assertThat(
-                idColumn.path("ordinalPosition").asInt()
-        ).isEqualTo(1);
+		assertThat(idColumn.path("nullable").asText()).isEqualTo("NO");
 
-        assertThat(result)
-                .contains("\"trace_id\"")
-                .contains("\"user_message\"")
-                .contains("\"answer\"")
-                .contains("\"used_tool\"")
-                .contains("\"agent_cost_ms\"")
-                .contains("\"created_time\"");
-    }
+		assertThat(idColumn.path("ordinalPosition").asInt()).isEqualTo(1);
 
-    @Test
-    void shouldReturnColumnsInDatabaseOrder()
-            throws Exception {
+		assertThat(result).contains("\"trace_id\"")
+			.contains("\"user_message\"")
+			.contains("\"answer\"")
+			.contains("\"used_tool\"")
+			.contains("\"agent_cost_ms\"")
+			.contains("\"created_time\"");
+	}
 
-        String result = getTableSchemaTool.execute(
-                Map.of(
-                        "tableName",
-                        "agent_step_log"
-                )
-        );
+	@Test
+	void shouldReturnColumnsInDatabaseOrder() throws Exception {
 
-        JsonNode columns = objectMapper.readTree(result);
+		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_step_log"));
 
-        assertThat(columns.isArray()).isTrue();
-        assertThat(columns.size()).isGreaterThanOrEqualTo(11);
+		JsonNode columns = objectMapper.readTree(result);
 
-        assertThat(
-                columns.get(0)
-                        .path("columnName")
-                        .asText()
-        ).isEqualTo("id");
+		assertThat(columns.isArray()).isTrue();
+		assertThat(columns.size()).isGreaterThanOrEqualTo(11);
 
-        assertThat(
-                columns.get(1)
-                        .path("columnName")
-                        .asText()
-        ).isEqualTo("trace_id");
+		assertThat(columns.get(0).path("columnName").asText()).isEqualTo("id");
 
-        assertThat(
-                columns.get(2)
-                        .path("columnName")
-                        .asText()
-        ).isEqualTo("step_name");
+		assertThat(columns.get(1).path("columnName").asText()).isEqualTo("trace_id");
 
-        assertThat(
-                columns.get(3)
-                        .path("columnName")
-                        .asText()
-        ).isEqualTo("description");
+		assertThat(columns.get(2).path("columnName").asText()).isEqualTo("step_name");
 
-        assertThat(
-                columns.get(9)
-                        .path("columnName")
-                        .asText()
-        ).isEqualTo("step_order");
-    }
+		assertThat(columns.get(3).path("columnName").asText()).isEqualTo("description");
 
-    @Test
-    void shouldSuggestSimilarTableWhenTableDoesNotExist() {
-        String result = getTableSchemaTool.execute(
-                Map.of(
-                        "tableName",
-                        "agent_run_lgo"
-                )
-        );
+		assertThat(columns.get(9).path("columnName").asText()).isEqualTo("step_order");
+	}
 
-        assertThat(result)
-                .contains("未查询到表结构")
-                .contains("agent_run_lgo")
-                .contains("agent_run_log");
-    }
+	@Test
+	void shouldSuggestSimilarTableWhenTableDoesNotExist() {
+		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_run_lgo"));
 
-    @Test
-    void shouldRejectUnsafeTableNameBeforeQueryingDatabase() {
-        String result = getTableSchemaTool.execute(
-                Map.of(
-                        "tableName",
-                        "agent_run_log; DROP TABLE agent_run_log"
-                )
-        );
+		assertThat(result).contains("未查询到表结构").contains("agent_run_lgo").contains("agent_run_log");
+	}
 
-        assertThat(result)
-                .contains("表名格式不合法")
-                .contains("只允许字母、数字和下划线");
-    }
+	@Test
+	void shouldRejectUnsafeTableNameBeforeQueryingDatabase() {
+		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_run_log; DROP TABLE agent_run_log"));
 
-    @Test
-    void shouldAnalyzeUnknownColumnAgainstRealTableSchema()
-            throws Exception {
+		assertThat(result).contains("表名格式不合法").contains("只允许字母、数字和下划线");
+	}
 
-        String sqlError =
-                "java.sql.SQLSyntaxErrorException: "
-                        + "Unknown column 'r.missing_field' "
-                        + "in 'field list'";
+	@Test
+	void shouldAnalyzeUnknownColumnAgainstRealTableSchema() throws Exception {
 
-        String result =
-                analyzeSqlErrorWithSchemaTool.execute(
-                        Map.of(
-                                "log",
-                                sqlError,
-                                "tableName",
-                                "agent_run_log"
-                        )
-                );
+		String sqlError = "java.sql.SQLSyntaxErrorException: " + "Unknown column 'r.missing_field' "
+				+ "in 'field list'";
 
-        JsonNode analysis = objectMapper.readTree(result);
+		String result = analyzeSqlErrorWithSchemaTool.execute(Map.of("log", sqlError, "tableName", "agent_run_log"));
 
-        assertThat(
-                analysis.path("errorEvidence")
-                        .path("errorType")
-                        .asText()
-        ).isEqualTo("UNKNOWN_COLUMN");
+		JsonNode analysis = objectMapper.readTree(result);
 
-        assertThat(
-                analysis.path("tableName").asText()
-        ).isEqualTo("agent_run_log");
+		assertThat(analysis.path("errorEvidence").path("errorType").asText()).isEqualTo("UNKNOWN_COLUMN");
 
-        assertThat(
-                analysis.path("referencedColumns")
-                        .get(0)
-                        .asText()
-        ).isEqualTo("missing_field");
+		assertThat(analysis.path("tableName").asText()).isEqualTo("agent_run_log");
 
-        assertThat(
-                analysis.path("missingColumns")
-                        .get(0)
-                        .asText()
-        ).isEqualTo("missing_field");
+		assertThat(analysis.path("referencedColumns").get(0).asText()).isEqualTo("missing_field");
 
-        assertThat(
-                analysis.path("existingColumns").toString()
-        )
-                .contains("\"id\"")
-                .contains("\"trace_id\"")
-                .contains("\"user_message\"");
+		assertThat(analysis.path("missingColumns").get(0).asText()).isEqualTo("missing_field");
 
-        assertThat(
-                analysis.path("diagnosis").asText()
-        )
-                .contains("agent_run_log")
-                .contains("missing_field")
-                .contains("不存在的字段");
+		assertThat(analysis.path("existingColumns").toString()).contains("\"id\"")
+			.contains("\"trace_id\"")
+			.contains("\"user_message\"");
 
-        assertThat(
-                analysis.path("suggestedActions").isArray()
-        ).isTrue();
+		assertThat(analysis.path("diagnosis").asText()).contains("agent_run_log")
+			.contains("missing_field")
+			.contains("不存在的字段");
 
-        assertThat(
-                analysis.path("suggestedActions").size()
-        ).isGreaterThanOrEqualTo(4);
+		assertThat(analysis.path("suggestedActions").isArray()).isTrue();
 
-        assertThat(
-                analysis.path("tableSchema").isArray()
-        ).isTrue();
+		assertThat(analysis.path("suggestedActions").size()).isGreaterThanOrEqualTo(4);
 
-        assertThat(
-                analysis.path("tableSchema").size()
-        ).isGreaterThanOrEqualTo(14);
-    }
+		assertThat(analysis.path("tableSchema").isArray()).isTrue();
 
-    @Test
-    void shouldHandleMissingTableDuringSqlErrorAnalysis() {
-        String sqlError =
-                "Unknown column 'missing_field' in 'field list'";
+		assertThat(analysis.path("tableSchema").size()).isGreaterThanOrEqualTo(14);
+	}
 
-        String result =
-                analyzeSqlErrorWithSchemaTool.execute(
-                        Map.of(
-                                "log",
-                                sqlError,
-                                "tableName",
-                                "table_that_does_not_exist"
-                        )
-                );
+	@Test
+	void shouldHandleMissingTableDuringSqlErrorAnalysis() {
+		String sqlError = "Unknown column 'missing_field' in 'field list'";
 
-        assertThat(result)
-                .contains("未查询到表结构")
-                .contains("无法结合表结构分析")
-                .contains("table_that_does_not_exist");
-    }
+		String result = analyzeSqlErrorWithSchemaTool
+			.execute(Map.of("log", sqlError, "tableName", "table_that_does_not_exist"));
 
-    @Test
-    void shouldRejectUnsafeTableNameDuringSqlErrorAnalysis() {
-        String sqlError =
-                "Unknown column 'missing_field' in 'field list'";
+		assertThat(result).contains("未查询到表结构").contains("无法结合表结构分析").contains("table_that_does_not_exist");
+	}
 
-        assertThatThrownBy(
-                () -> analyzeSqlErrorWithSchemaTool.execute(
-                        Map.of(
-                                "log",
-                                sqlError,
-                                "tableName",
-                                "agent_run_log where 1=1"
-                        )
-                )
-        )
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("表名格式不合法")
-                .hasMessageContaining("只允许字母、数字和下划线");
-    }
+	@Test
+	void shouldRejectUnsafeTableNameDuringSqlErrorAnalysis() {
+		String sqlError = "Unknown column 'missing_field' in 'field list'";
+
+		assertThatThrownBy(() -> analyzeSqlErrorWithSchemaTool
+			.execute(Map.of("log", sqlError, "tableName", "agent_run_log where 1=1")))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("表名格式不合法")
+			.hasMessageContaining("只允许字母、数字和下划线");
+	}
+
 }

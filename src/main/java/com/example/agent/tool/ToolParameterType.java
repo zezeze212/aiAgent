@@ -1,4 +1,14 @@
 package com.example.agent.tool;
 
-public class ToolParameterType {
+/**
+ * Agent 工具参数类型。
+ */
+public enum ToolParameterType {
+
+	STRING,
+
+	INTEGER,
+
+	BOOLEAN
+
 }

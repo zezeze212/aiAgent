@@ -4,19 +4,25 @@ import com.example.agent.client.DeepSeekDecisionClient;
 import com.example.agent.config.AgentProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.KnowledgeRetrievalPhase;
 import com.example.agent.dto.ToolDecision;
 import com.example.agent.dto.ToolExecutionResult;
-import com.example.agent.support.AgentJsonHelper;
-import com.example.agent.tool.ToolRegistry;
 import com.example.agent.rag.KnowledgeSearchResult;
 import com.example.agent.rag.SimpleRagRetriever;
-import com.example.agent.dto.KnowledgeRetrievalPhase;
+import com.example.agent.support.AgentJsonHelper;
+import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Agent 核心编排器。
@@ -46,73 +52,62 @@ public class AgentOrchestrator {
 	private final AgentProperties agentProperties;
 
 	public AgentAskResponse execute(String userMessage, String traceId) {
-		// 保存一次 Agent 请求在循环过程中的可变状态。
 		AgentRunContext context = createContext(userMessage, traceId);
 
-		// 首次 AI 决策前，先根据原始用户问题检索知识并追加到上下文。
 		KnowledgeSearchResult initialKnowledgeResult = retrieveKnowledge(context, context.userMessage,
 				KnowledgeRetrievalPhase.PRE_DECISION);
+
 		decisionClient.appendKnowledgeContext(context.messages, initialKnowledgeResult);
+
 		rememberInjectedKnowledge(context, initialKnowledgeResult);
 
 		while (true) {
-			// 检测是否超时
 			GuardViolation timeoutViolation = checkExecutionTimeout(context);
 
 			if (timeoutViolation != null) {
 				return finishWithGuardFailure(context, timeoutViolation);
 			}
 
-			// 获取AI决策结果和耗时、耗时保护
 			TimedDecision timedDecision = decideWithTiming(context.messages);
+
 			if (!timedDecision.success()) {
 				return finishWithDecisionFailure(context, timedDecision);
 			}
 
 			ToolDecision decision = timedDecision.decision();
 
-			// 打印决策日志
 			logDecision(traceId, decision, timedDecision.costMs());
 
-			// 不需要使用工具直接返回
 			if (Boolean.FALSE.equals(decision.getNeedTool())) {
+
 				return finishWithDirectAnswer(context, decision, timedDecision.costMs());
 			}
 
-			// 总计决策耗时
 			context.totalDecisionCostMs += timedDecision.costMs();
 
-			// 添加决策步骤记录
 			addDecisionStep(context, decision, timedDecision.costMs());
 
-			// 检测是否超时
 			timeoutViolation = checkExecutionTimeout(context);
 
 			if (timeoutViolation != null) {
 				return finishWithGuardFailure(context, timeoutViolation);
 			}
 
-			// 检测是否超过最大调用工具次数、以及是否使用相同参数调用相同工具
 			GuardViolation violation = checkToolCallGuard(context, decision);
 
-			// 超过最大调用工具次数、或者使用相同参数调用相同工具、执行AGENT_GUARD步骤记录并返回
 			if (violation != null) {
 				return finishWithGuardFailure(context, violation);
 			}
 
-			// 继续调用工具
 			ToolExecutionResult toolResult = executeTool(context, decision);
 
-			// 工具执行是否成功
 			if (!Boolean.TRUE.equals(toolResult.getSuccess())) {
+
 				return finishWithToolFailure(context, toolResult);
 			}
 
 			KnowledgeSearchResult knowledgeResult = retrievePostToolKnowledge(context, initialKnowledgeResult);
 
-			/*
-			 * 工具成功后，将真实证据和检索到的参考知识放回原对话。 下一轮 AI 可以直接回答，也可以继续调用其他工具。
-			 */
 			decisionClient.appendToolResult(context.messages, context.lastToolName, decision.getArguments(),
 					context.lastToolResult, knowledgeResult);
 		}
@@ -123,10 +118,12 @@ public class AgentOrchestrator {
 	 */
 	private KnowledgeSearchResult retrieveKnowledge(AgentRunContext context, String query,
 			KnowledgeRetrievalPhase phase) {
+
 		long startTime = System.currentTimeMillis();
 
 		try {
 			KnowledgeSearchResult result = ragRetriever.retrieve(query);
+
 			long costMs = System.currentTimeMillis() - startTime;
 
 			String description = result.matched() ? phase.name() + "：检索到相关本地知识" : phase.name() + "：未检索到相关本地知识";
@@ -138,6 +135,7 @@ public class AgentOrchestrator {
 		}
 		catch (Exception e) {
 			long costMs = System.currentTimeMillis() - startTime;
+
 			String errorMessage = "本地知识检索失败：" + e.getMessage();
 
 			context.steps.add(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", phase.name() + "：本地知识检索失败，继续执行 Agent 决策", false,
@@ -151,8 +149,6 @@ public class AgentOrchestrator {
 
 	/**
 	 * 工具执行成功后按需补充检索知识。
-	 *
-	 * 首次决策前已经命中知识时，当前规则不再重复检索； 首次未命中时，结合用户问题和工具结果再次检索。
 	 */
 	private KnowledgeSearchResult retrievePostToolKnowledge(AgentRunContext context,
 			KnowledgeSearchResult preDecisionKnowledgeResult) {
@@ -178,6 +174,7 @@ public class AgentOrchestrator {
 	private void rememberInjectedKnowledge(AgentRunContext context, KnowledgeSearchResult knowledgeResult) {
 
 		if (knowledgeResult == null || !knowledgeResult.matched()) {
+
 			return;
 		}
 
@@ -185,18 +182,20 @@ public class AgentOrchestrator {
 	}
 
 	/**
-	 * 过滤当前 Agent 运行过程中已经注入过的知识。
+	 * 过滤已经注入过的知识。
 	 */
 	private KnowledgeSearchResult filterRepeatedKnowledge(AgentRunContext context,
 			KnowledgeSearchResult knowledgeResult) {
 
 		if (knowledgeResult == null || !knowledgeResult.matched()) {
+
 			return knowledgeResult;
 		}
 
 		String knowledgeKey = buildKnowledgeKey(knowledgeResult);
 
 		if (context.injectedKnowledgeKeys.add(knowledgeKey)) {
+
 			return knowledgeResult;
 		}
 
@@ -210,11 +209,13 @@ public class AgentOrchestrator {
 	 * 使用知识来源和内容共同生成运行期去重标识。
 	 */
 	private String buildKnowledgeKey(KnowledgeSearchResult knowledgeResult) {
+
 		return Objects.toString(knowledgeResult.source(), "") + System.lineSeparator()
 				+ Objects.toString(knowledgeResult.content(), "");
 	}
 
 	private AgentAskResponse finishWithDecisionFailure(AgentRunContext context, TimedDecision timedDecision) {
+
 		String answer = "Agent 决策失败：" + timedDecision.errorMessage();
 
 		context.totalDecisionCostMs += timedDecision.costMs();
@@ -226,20 +227,26 @@ public class AgentOrchestrator {
 	}
 
 	private AgentRunContext createContext(String userMessage, String traceId) {
+
 		List<Map<String, String>> messages = decisionClient.createDecisionMessages(userMessage);
+
 		return new AgentRunContext(userMessage, traceId, messages);
 	}
 
 	private TimedDecision decideWithTiming(List<Map<String, String>> messages) {
+
 		long startTime = System.currentTimeMillis();
 
 		try {
 			ToolDecision decision = decisionClient.decide(messages);
+
 			long costMs = System.currentTimeMillis() - startTime;
+
 			return new TimedDecision(decision, costMs, true, null);
 		}
 		catch (Exception e) {
 			long costMs = System.currentTimeMillis() - startTime;
+
 			return new TimedDecision(null, costMs, false, e.getMessage());
 		}
 	}
@@ -249,18 +256,20 @@ public class AgentOrchestrator {
 	 */
 	private AgentAskResponse finishWithDirectAnswer(AgentRunContext context, ToolDecision decision,
 			long currentDecisionCostMs) {
+
 		Long summaryCostMs = null;
 
 		if (context.usedTool) {
 			summaryCostMs = currentDecisionCostMs;
+
 			addSummaryStep(context, decision.getDirectAnswer(), currentDecisionCostMs);
 		}
 		else {
 			context.totalDecisionCostMs += currentDecisionCostMs;
+
 			addDecisionStep(context, decision, currentDecisionCostMs);
 		}
 
-		// 检测是否超时
 		GuardViolation timeoutViolation = checkExecutionTimeout(context);
 
 		if (timeoutViolation != null) {
@@ -270,20 +279,29 @@ public class AgentOrchestrator {
 		return buildResponse(context, decision.getDirectAnswer(), summaryCostMs);
 	}
 
+	/**
+	 * 执行工具并把工具执行状态完整写入 Trace。
+	 */
 	private ToolExecutionResult executeTool(AgentRunContext context, ToolDecision decision) {
+
 		String toolName = decision.getToolName();
+
 		Map<String, Object> arguments = decision.getArguments();
 
 		ToolExecutionResult result = toolRegistry.executeWithResult(toolName, arguments);
 
 		context.toolCallCount++;
 		context.usedTool = true;
+
 		context.totalToolCostMs += result.getCostMs();
+
 		context.lastToolName = toolName;
+
 		context.lastToolResult = result.getResult();
 
 		context.steps.add(new AgentTraceStep("TOOL_EXECUTION", "执行工具：" + toolName, result.getSuccess(),
-				result.getCostMs(), toJsonSafely(arguments), result.getResult(), result.getErrorMessage()));
+				result.getCostMs(), toJsonSafely(arguments), result.getResult(), result.getStatus(),
+				result.getErrorCode(), result.getErrorMessage()));
 
 		return result;
 	}
@@ -292,8 +310,9 @@ public class AgentOrchestrator {
 	 * 工具失败后不再调用 AI 总结，避免模型掩盖真实错误。
 	 */
 	private AgentAskResponse finishWithToolFailure(AgentRunContext context, ToolExecutionResult toolResult) {
-		log.warn("Agent 工具执行失败，traceId={}, toolName={}, error={}", context.traceId, context.lastToolName,
-				toolResult.getErrorMessage());
+
+		log.warn("Agent 工具执行失败，traceId={}, toolName={}, status={}, errorCode={}, error={}", context.traceId,
+				context.lastToolName, toolResult.getStatus(), toolResult.getErrorCode(), toolResult.getErrorMessage());
 
 		return buildResponse(context, toolResult.getResult(), 0L);
 	}
@@ -302,31 +321,31 @@ public class AgentOrchestrator {
 	 * 检查当前 Agent 请求是否超过允许的总执行时间。
 	 */
 	private GuardViolation checkExecutionTimeout(AgentRunContext context) {
-		// 计算当前时间与 agentStartTime 的差值
+
 		long maxExecutionTimeMs = agentProperties.getMaxExecutionTimeMs();
+
 		long elapsedTimeMs = System.currentTimeMillis() - context.agentStartTime;
 
-		// 没有超时返回 null
 		if (elapsedTimeMs < maxExecutionTimeMs) {
+
 			return null;
 		}
 
-		// 超时后返回 GuardViolation
 		return new GuardViolation("总执行时间保护", "elapsedTimeMs=" + elapsedTimeMs,
 				"Agent 执行时间已超过 " + agentProperties.getMaxExecutionTimeMs() + " 毫秒，已停止继续执行。");
 	}
 
 	private GuardViolation checkToolCallGuard(AgentRunContext context, ToolDecision decision) {
+
 		if (context.toolCallCount >= MAX_TOOL_CALLS) {
+
 			return new GuardViolation("最大工具调用次数保护", toJsonSafely(decision), "Agent 已达到最大工具调用次数，已停止继续执行。");
 		}
 
 		String signature = buildToolCallSignature(decision.getToolName(), decision.getArguments());
 
-		/*
-		 * Set.add() 返回 false，表示相同工具和相同参数已经调用过。
-		 */
 		if (!context.executedToolCalls.add(signature)) {
+
 			return new GuardViolation("重复工具调用保护", signature, "Agent 检测到重复的工具调用，已停止继续执行。");
 		}
 
@@ -334,6 +353,7 @@ public class AgentOrchestrator {
 	}
 
 	private AgentAskResponse finishWithGuardFailure(AgentRunContext context, GuardViolation violation) {
+
 		context.steps.add(new AgentTraceStep("AGENT_GUARD", violation.description(), false, 0L, violation.input(),
 				violation.errorMessage(), violation.errorMessage()));
 
@@ -343,6 +363,7 @@ public class AgentOrchestrator {
 	}
 
 	private void addDecisionStep(AgentRunContext context, ToolDecision decision, long costMs) {
+
 		String input = context.toolCallCount == 0 ? context.userMessage : context.lastToolResult;
 
 		String description = Boolean.TRUE.equals(decision.getNeedTool()) ? "AI 判断并选择后端工具" : "AI 判断无需调用工具";
@@ -352,6 +373,7 @@ public class AgentOrchestrator {
 	}
 
 	private void addSummaryStep(AgentRunContext context, String finalAnswer, long costMs) {
+
 		context.steps.add(new AgentTraceStep("AI_SUMMARY", "AI 根据已有工具证据生成最终回答", true, costMs, context.lastToolResult,
 				finalAnswer, null));
 	}
@@ -360,7 +382,9 @@ public class AgentOrchestrator {
 	 * 当前响应字段只保存最后一次工具名称和结果； 完整的多步调用过程由 steps 保存。
 	 */
 	private AgentAskResponse buildResponse(AgentRunContext context, String finalAnswer, Long summaryCostMs) {
+
 		long agentCostMs = System.currentTimeMillis() - context.agentStartTime;
+
 		Long toolCostMs = context.usedTool ? context.totalToolCostMs : null;
 
 		return new AgentAskResponse(finalAnswer, context.usedTool, context.lastToolName,
@@ -369,12 +393,14 @@ public class AgentOrchestrator {
 	}
 
 	private List<AgentTraceStep> buildResponseSteps(List<AgentTraceStep> steps) {
+
 		if (steps == null) {
 			return null;
 		}
 
 		for (AgentTraceStep step : steps) {
 			step.setInputView(agentJsonHelper.parseJsonIfPossible(step.getInput()));
+
 			step.setOutputView(agentJsonHelper.parseJsonIfPossible(step.getOutput()));
 		}
 
@@ -382,13 +408,16 @@ public class AgentOrchestrator {
 	}
 
 	private String buildToolCallSignature(String toolName, Map<String, Object> arguments) {
+
 		String normalizedToolName = toolName == null ? "" : toolName.trim();
+
 		Map<String, Object> normalizedArguments = arguments == null ? Map.of() : new TreeMap<>(arguments);
 
 		return normalizedToolName + "|" + toJsonSafely(normalizedArguments);
 	}
 
 	private String toJsonSafely(Object object) {
+
 		if (object == null) {
 			return null;
 		}
@@ -402,6 +431,7 @@ public class AgentOrchestrator {
 	}
 
 	private void logDecision(String traceId, ToolDecision decision, long decisionCostMs) {
+
 		log.info("Agent 工具决策完成，traceId={}, needTool={}, toolName={}, decisionCostMs={}", traceId,
 				decision.getNeedTool(), decision.getToolName(), decisionCostMs);
 	}
@@ -414,8 +444,6 @@ public class AgentOrchestrator {
 
 	/**
 	 * 保存一次 Agent 请求在循环过程中的可变状态。
-	 *
-	 * 这些字段只在单个请求内部使用，不会在多个请求之间共享， 因此不会产生 Spring 单例 Bean 的线程安全问题。
 	 */
 	private static final class AgentRunContext {
 
@@ -449,9 +477,13 @@ public class AgentOrchestrator {
 		private final Set<String> injectedKnowledgeKeys = new HashSet<>();
 
 		private AgentRunContext(String userMessage, String traceId, List<Map<String, String>> messages) {
+
 			this.userMessage = userMessage;
+
 			this.traceId = traceId;
+
 			this.messages = messages;
+
 			this.agentStartTime = System.currentTimeMillis();
 		}
 

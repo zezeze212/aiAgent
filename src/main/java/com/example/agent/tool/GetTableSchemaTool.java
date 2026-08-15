@@ -13,27 +13,22 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GetTableSchemaTool implements AgentTool {
 
+	private static final String TABLE_NAME_PATTERN = "^[a-zA-Z0-9_]+$";
+
+	private static final ToolDefinition DEFINITION = new ToolDefinition("getTableSchema",
+			"查询当前 MySQL 数据库中某张表的字段结构。适用于用户询问表有哪些字段、字段类型、字段注释、表结构、SQL 报错中字段是否存在等场景。",
+			List.of(ToolParameterDefinition.requiredString("tableName", 1, 64, TABLE_NAME_PATTERN, true,
+					"需要查询结构的数据库表名，例如 agent_run_log")),
+			"返回指定表的字段结构 JSON；表不存在时返回明确提示和可能的相似表名。", 5000L, true, ToolSideEffect.NONE, ToolRiskLevel.LOW,
+			List.of("DATABASE_METADATA_READ"));
+
 	private final JdbcTemplate jdbcTemplate;
 
 	private final ObjectMapper objectMapper;
 
 	@Override
-	public String name() {
-		return "getTableSchema";
-	}
-
-	@Override
-	public String description() {
-		return "查询当前 MySQL 数据库中某张表的字段结构。适用于用户询问表有哪些字段、字段类型、字段注释、表结构、SQL 报错中字段是否存在等场景。";
-	}
-
-	@Override
-	public String parameterSchema() {
-		return """
-				{
-				  "tableName": "需要查询结构的数据库表名，例如 agent_run_log"
-				}
-				""";
+	public ToolDefinition definition() {
+		return DEFINITION;
 	}
 
 	@Override
@@ -112,13 +107,14 @@ public class GetTableSchemaTool implements AgentTool {
 	}
 
 	private boolean isSafeTableName(String tableName) {
-		return tableName.matches("^[a-zA-Z0-9_]+$");
+		return tableName.matches(TABLE_NAME_PATTERN);
 	}
 
 	private String getStringArg(Map<String, Object> arguments, String key) {
 		if (arguments == null || arguments.get(key) == null) {
 			return null;
 		}
+
 		return String.valueOf(arguments.get(key));
 	}
 

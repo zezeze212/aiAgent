@@ -7,11 +7,28 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
+
+	private static final String TABLE_NAME_PATTERN = "^[a-zA-Z0-9_]+$";
+
+	private static final ToolDefinition DEFINITION = new ToolDefinition("analyzeSqlErrorWithSchema",
+			"提取 SQL/MyBatis 报错中的结构化错误证据，并查询相关数据库表结构。适用于 Unknown column、字段不存在、字段映射错误、SQL字段与真实表结构不一致等需要真实数据库信息的场景。",
+			List.of(ToolParameterDefinition.requiredString("log", 1, 20_000, null, true,
+					"用户提供的 SQL、MyBatis 或 Java 报错日志"),
+					ToolParameterDefinition.requiredString("tableName", 1, 64, TABLE_NAME_PATTERN, true,
+							"相关数据库表名，例如 agent_run_log")),
+			"返回 SQL 错误证据、真实表结构、引用字段、缺失字段、诊断结论和建议动作。", 5000L, true, ToolSideEffect.NONE, ToolRiskLevel.LOW,
+			List.of("DATABASE_METADATA_READ"));
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -20,23 +37,8 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 	private final SqlErrorEvidenceExtractor sqlErrorEvidenceExtractor;
 
 	@Override
-	public String name() {
-		return "analyzeSqlErrorWithSchema";
-	}
-
-	@Override
-	public String description() {
-		return "提取 SQL/MyBatis 报错中的结构化错误证据，并查询相关数据库表结构。适用于 Unknown column、字段不存在、字段映射错误、SQL字段与真实表结构不一致等需要真实数据库信息的场景。";
-	}
-
-	@Override
-	public String parameterSchema() {
-		return """
-				{
-				  "log": "用户提供的 SQL、MyBatis 或 Java 报错日志",
-				  "tableName": "相关数据库表名，例如 agent_run_log"
-				}
-				""";
+	public ToolDefinition definition() {
+		return DEFINITION;
 	}
 
 	@Override
@@ -72,6 +74,7 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 
 	private Map<String, Object> buildToolData(SqlErrorEvidence errorEvidence, String tableName,
 			List<Map<String, Object>> tableSchema) {
+
 		List<String> referencedColumns = safeList(errorEvidence.getColumns());
 		List<String> existingColumns = extractExistingColumns(tableSchema);
 		List<String> missingColumns = findMissingColumns(referencedColumns, existingColumns);
@@ -116,6 +119,7 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 	}
 
 	private List<String> findMissingColumns(List<String> referencedColumns, List<String> existingColumns) {
+
 		if (referencedColumns == null || referencedColumns.isEmpty()) {
 			return List.of();
 		}
@@ -137,6 +141,7 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 			String normalizedColumn = referencedColumn.toLowerCase(Locale.ROOT);
 
 			if (!existingColumnSet.contains(normalizedColumn) && addedColumns.add(normalizedColumn)) {
+
 				missingColumns.add(referencedColumn);
 			}
 		}
@@ -145,6 +150,7 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 	}
 
 	private String buildDiagnosis(SqlErrorEvidence errorEvidence, String tableName, List<String> missingColumns) {
+
 		if ("UNKNOWN_COLUMN".equals(errorEvidence.getErrorType())) {
 			if (missingColumns == null || missingColumns.isEmpty()) {
 				return "SQL 引用了数据库表中可能不存在的字段，但未能从报错中确认具体缺失字段。";
@@ -157,6 +163,7 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 	}
 
 	private List<String> buildSuggestedActions(SqlErrorEvidence errorEvidence, List<String> missingColumns) {
+
 		List<String> suggestedActions = new ArrayList<>();
 
 		if ("UNKNOWN_COLUMN".equals(errorEvidence.getErrorType())) {
@@ -203,11 +210,12 @@ public class AnalyzeSqlErrorWithSchemaTool implements AgentTool {
 		if (arguments == null || arguments.get(key) == null) {
 			return null;
 		}
+
 		return String.valueOf(arguments.get(key));
 	}
 
 	private boolean isSafeTableName(String tableName) {
-		return tableName.matches("^[a-zA-Z0-9_]+$");
+		return tableName.matches(TABLE_NAME_PATTERN);
 	}
 
 	private String toJsonSafely(Object object) {
