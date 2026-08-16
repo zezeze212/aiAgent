@@ -7,6 +7,7 @@ import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.support.AgentJsonHelper;
+import com.example.agent.support.TraceContentSanitizer;
 import com.example.agent.tool.ToolExecutionStatus;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.annotation.MapperScan;
@@ -60,7 +61,7 @@ class ToolTracePersistenceMySqlContainerTest {
 	@EnableAutoConfiguration
 	@EnableTransactionManagement
 	@MapperScan(basePackageClasses = { AgentRunLogMapper.class, AgentStepLogMapper.class })
-	@Import({ AgentLogService.class, AgentJsonHelper.class })
+	@Import({ AgentLogService.class, AgentJsonHelper.class, TraceContentSanitizer.class })
 	static class TestApplication {
 
 	}

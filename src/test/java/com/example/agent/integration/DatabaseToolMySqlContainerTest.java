@@ -1,8 +1,13 @@
 package com.example.agent.integration;
 
+import com.example.agent.config.AgentProperties;
+import com.example.agent.config.ToolExecutionConfig;
 import com.example.agent.sql.SqlErrorEvidenceExtractor;
-import com.example.agent.tool.AnalyzeSqlErrorWithSchemaTool;
-import com.example.agent.tool.GetTableSchemaTool;
+import com.example.agent.tool.*;
+import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.tool.ToolBusinessException;
+import com.example.agent.tool.ToolExecutionStatus;
+import com.example.agent.tool.ToolRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -10,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -18,6 +24,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +61,9 @@ class DatabaseToolMySqlContainerTest {
 	@Autowired
 	private ObjectMapper objectMapper;
 
+	@Autowired
+	private ToolRegistry toolRegistry;
+
 	/**
 	 * 只加载数据库、Flyway、JdbcTemplate、JSON 组件和两个数据库工具。
 	 *
@@ -61,9 +71,27 @@ class DatabaseToolMySqlContainerTest {
 	 */
 	@SpringBootConfiguration(proxyBeanMethods = false)
 	@EnableAutoConfiguration
-	@Import({ GetTableSchemaTool.class, AnalyzeSqlErrorWithSchemaTool.class, SqlErrorEvidenceExtractor.class })
+	@Import({ GetTableSchemaTool.class, AnalyzeSqlErrorWithSchemaTool.class, SqlErrorEvidenceExtractor.class,
+			ToolRegistry.class, ToolArgumentValidator.class, ToolExecutionRunner.class, ToolExecutionConfig.class,
+			ToolAccessPolicy.class, AgentProperties.class })
 	static class DatabaseToolTestApplication {
 
+	}
+
+	@Bean
+	AgentProperties agentProperties() {
+		AgentProperties properties = new AgentProperties();
+
+		/*
+		 * 本测试验证数据库工具本身以及 Registry 集成， 因此显式开放数据库元数据只读权限。
+		 */
+		properties.getToolGovernance().setAllowedPermissions(List.of("DATABASE_METADATA_READ"));
+
+		properties.getToolGovernance().setMaxRiskLevel(ToolRiskLevel.LOW);
+
+		properties.getToolGovernance().setAllowSideEffectTools(false);
+
+		return properties;
 	}
 
 	@Test
@@ -112,21 +140,34 @@ class DatabaseToolMySqlContainerTest {
 
 		assertThat(columns.get(3).path("columnName").asText()).isEqualTo("description");
 
-		assertThat(columns.get(9).path("columnName").asText()).isEqualTo("step_order");
+		assertThat(columns.get(9).path("columnName").asText()).isEqualTo("output_text");
 	}
 
 	@Test
-	void shouldSuggestSimilarTableWhenTableDoesNotExist() {
-		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_run_lgo"));
+	void shouldReportTableNotFoundAsBusinessFailure() {
+		/*
+		 * 直接调用具体 Tool 时，它只负责表达确定性的业务事实， 不负责包装 ToolExecutionResult。
+		 */
+		assertThatThrownBy(() -> getTableSchemaTool.execute(Map.of("tableName", "agent_run_lgo")))
+			.isInstanceOf(ToolBusinessException.class)
+			.satisfies(exception -> {
+				ToolBusinessException businessException = (ToolBusinessException) exception;
 
-		assertThat(result).contains("未查询到表结构").contains("agent_run_lgo").contains("agent_run_log");
+				assertThat(businessException.getErrorCode()).isEqualTo("TABLE_NOT_FOUND");
+
+				assertThat(businessException.getResult()).contains("未查询到表结构")
+					.contains("agent_run_lgo")
+					.contains("agent_run_log");
+			});
 	}
 
 	@Test
 	void shouldRejectUnsafeTableNameBeforeQueryingDatabase() {
-		String result = getTableSchemaTool.execute(Map.of("tableName", "agent_run_log; DROP TABLE agent_run_log"));
-
-		assertThat(result).contains("表名格式不合法").contains("只允许字母、数字和下划线");
+		assertThatThrownBy(
+				() -> getTableSchemaTool.execute(Map.of("tableName", "agent_run_log; DROP TABLE agent_run_log")))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("表名格式不合法")
+			.hasMessageContaining("只允许字母、数字和下划线");
 	}
 
 	@Test
@@ -165,13 +206,21 @@ class DatabaseToolMySqlContainerTest {
 	}
 
 	@Test
-	void shouldHandleMissingTableDuringSqlErrorAnalysis() {
+	void shouldReportMissingTableDuringSqlErrorAnalysisAsBusinessFailure() {
 		String sqlError = "Unknown column 'missing_field' in 'field list'";
 
-		String result = analyzeSqlErrorWithSchemaTool
-			.execute(Map.of("log", sqlError, "tableName", "table_that_does_not_exist"));
+		assertThatThrownBy(() -> analyzeSqlErrorWithSchemaTool
+			.execute(Map.of("log", sqlError, "tableName", "table_that_does_not_exist")))
+			.isInstanceOf(ToolBusinessException.class)
+			.satisfies(exception -> {
+				ToolBusinessException businessException = (ToolBusinessException) exception;
 
-		assertThat(result).contains("未查询到表结构").contains("无法结合表结构分析").contains("table_that_does_not_exist");
+				assertThat(businessException.getErrorCode()).isEqualTo("TABLE_NOT_FOUND");
+
+				assertThat(businessException.getResult()).contains("未查询到表结构")
+					.contains("无法结合表结构分析")
+					.contains("table_that_does_not_exist");
+			});
 	}
 
 	@Test
@@ -183,6 +232,36 @@ class DatabaseToolMySqlContainerTest {
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("表名格式不合法")
 			.hasMessageContaining("只允许字母、数字和下划线");
+	}
+
+	@Test
+	void shouldConvertSchemaTableNotFoundToBusinessErrorThroughRegistry() {
+		ToolExecutionResult result = toolRegistry.executeWithResult("getTableSchema",
+				Map.of("tableName", "agent_run_lgo"));
+
+		assertThat(result.getSuccess()).isFalse();
+
+		assertThat(result.getStatus()).isEqualTo(ToolExecutionStatus.BUSINESS_ERROR);
+
+		assertThat(result.getErrorCode()).isEqualTo("TABLE_NOT_FOUND");
+
+		assertThat(result.getResult()).contains("未查询到表结构").contains("agent_run_log");
+	}
+
+	@Test
+	void shouldConvertAnalysisTableNotFoundToBusinessErrorThroughRegistry() {
+		String sqlError = "Unknown column 'missing_field' in 'field list'";
+
+		ToolExecutionResult result = toolRegistry.executeWithResult("analyzeSqlErrorWithSchema",
+				Map.of("log", sqlError, "tableName", "table_that_does_not_exist"));
+
+		assertThat(result.getSuccess()).isFalse();
+
+		assertThat(result.getStatus()).isEqualTo(ToolExecutionStatus.BUSINESS_ERROR);
+
+		assertThat(result.getErrorCode()).isEqualTo("TABLE_NOT_FOUND");
+
+		assertThat(result.getResult()).contains("未查询到表结构").contains("无法结合表结构分析").contains("table_that_does_not_exist");
 	}
 
 }

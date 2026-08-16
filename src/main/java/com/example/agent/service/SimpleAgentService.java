@@ -24,7 +24,11 @@ public class SimpleAgentService {
 	public AgentAskResponse ask(String userMessage) {
 		String traceId = UUID.randomUUID().toString().substring(0, 8);
 
-		log.info("Agent 请求开始，traceId={}, userMessage={}", traceId, userMessage);
+		/*
+		 * 用户问题可能包含 StackTrace、密码或 Token， 普通应用日志不直接打印完整正文。 具体诊断内容由受治理的 Trace 保存。
+		 */
+		log.info("Agent 请求开始，traceId={}, userMessageLength={}", traceId,
+				userMessage == null ? 0 : userMessage.length());
 
 		AgentAskResponse response = agentOrchestrator.execute(userMessage, traceId);
 

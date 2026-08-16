@@ -13,6 +13,7 @@ import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
 import com.example.agent.support.AgentJsonHelper;
+import com.example.agent.support.TraceContentSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,8 @@ public class AgentLogService {
 
 	private final AgentJsonHelper agentJsonHelper;
 
+	private final TraceContentSanitizer traceContentSanitizer;
+
 	@Transactional(rollbackFor = Exception.class)
 	public void saveRunLog(String userMessage, AgentAskResponse response) {
 
@@ -51,15 +54,24 @@ public class AgentLogService {
 
 		runLog.setTraceId(response.getTraceId());
 
-		runLog.setUserMessage(userMessage);
+		/*
+		 * agent_run_log 属于历史审计数据。
+		 *
+		 * 用户原始问题和最终回答可能包含密码、Token 或超长日志， 因此保存前统一做脱敏和长度限制。
+		 *
+		 * 注意这里只修改即将写入数据库的副本， 不修改 response 本身。
+		 */
+		runLog.setUserMessage(traceContentSanitizer.sanitize(userMessage));
 
-		runLog.setAnswer(response.getAnswer());
+		runLog.setAnswer(traceContentSanitizer.sanitize(response.getAnswer()));
 
 		runLog.setUsedTool(Boolean.TRUE.equals(response.getUsedTool()) ? 1 : 0);
 
 		runLog.setToolName(response.getToolName());
 
-		runLog.setToolResult(agentJsonHelper.serializeForStorage(response.getToolResult()));
+		String serializedToolResult = agentJsonHelper.serializeForStorage(response.getToolResult());
+
+		runLog.setToolResult(traceContentSanitizer.sanitize(serializedToolResult));
 
 		runLog.setDecisionCostMs(response.getDecisionCostMs());
 
@@ -80,7 +92,7 @@ public class AgentLogService {
 
 					runSuccess = 0;
 
-					runErrorMessage = step.getErrorMessage();
+					runErrorMessage = traceContentSanitizer.sanitize(step.getErrorMessage());
 
 					break;
 				}
@@ -123,11 +135,16 @@ public class AgentLogService {
 
 			stepLog.setCostMs(step.getCostMs());
 
-			stepLog.setInputText(step.getInput());
+			/*
+			 * DB 中保存的是审计 Trace，而不是 Agent 的运行时上下文。
+			 *
+			 * 因此这里允许裁剪和脱敏， 不会影响已经完成的模型和 Tool 执行。
+			 */
+			stepLog.setInputText(traceContentSanitizer.sanitize(step.getInput()));
 
-			stepLog.setOutputText(step.getOutput());
+			stepLog.setOutputText(traceContentSanitizer.sanitize(step.getOutput()));
 
-			stepLog.setErrorMessage(step.getErrorMessage());
+			stepLog.setErrorMessage(traceContentSanitizer.sanitize(step.getErrorMessage()));
 
 			stepLog.setStepOrder(i + 1);
 

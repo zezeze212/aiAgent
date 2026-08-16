@@ -5,6 +5,7 @@ import com.example.agent.dto.*;
 import com.example.agent.exception.BusinessException;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.service.SimpleAgentService;
+import com.example.agent.support.AgentTraceSanitizer;
 import com.example.agent.tool.ToolRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,13 +25,25 @@ public class AgentController {
 
 	private final AgentLogService agentLogService;
 
+	private final AgentTraceSanitizer agentTraceSanitizer;
+
 	@PostMapping("/ask")
 	public Result<AgentAskResponse> ask(@RequestBody AgentAskRequest request) {
+
 		if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+
 			throw new BusinessException(400, "message 不能为空");
 		}
 
+		/*
+		 * Agent 已经完成真实计算和数据库保存。
+		 *
+		 * 这里位于 HTTP 输出边界，只治理对外返回的 Trace， 不修改最终 answer，也不会影响此前的模型/Tool 执行。
+		 */
 		AgentAskResponse response = simpleAgentService.ask(request.getMessage());
+
+		agentTraceSanitizer.sanitize(response.getSteps());
+
 		return Result.success(response);
 	}
 

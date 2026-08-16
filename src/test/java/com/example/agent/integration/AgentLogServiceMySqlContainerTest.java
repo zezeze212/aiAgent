@@ -8,6 +8,7 @@ import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.support.AgentJsonHelper;
+import com.example.agent.support.TraceContentSanitizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.annotation.MapperScan;
@@ -77,7 +78,7 @@ class AgentLogServiceMySqlContainerTest {
 	@EnableAutoConfiguration
 	@EnableTransactionManagement
 	@MapperScan(basePackageClasses = { AgentRunLogMapper.class, AgentStepLogMapper.class })
-	@Import({ AgentLogService.class, AgentJsonHelper.class })
+	@Import({ AgentLogService.class, AgentJsonHelper.class, TraceContentSanitizer.class })
 	static class LogServiceTestApplication {
 
 	}

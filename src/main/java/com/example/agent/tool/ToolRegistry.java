@@ -17,12 +17,22 @@ public class ToolRegistry {
 
 	private final ToolArgumentValidator toolArgumentValidator;
 
-	public ToolRegistry(List<AgentTool> tools, ToolArgumentValidator toolArgumentValidator) {
+	private final ToolExecutionRunner toolExecutionRunner;
+
+	private final ToolAccessPolicy toolAccessPolicy;
+
+	public ToolRegistry(List<AgentTool> tools, ToolArgumentValidator toolArgumentValidator,
+			ToolExecutionRunner toolExecutionRunner, ToolAccessPolicy toolAccessPolicy) {
 
 		this.toolArgumentValidator = toolArgumentValidator;
 
+		this.toolExecutionRunner = toolExecutionRunner;
+
+		this.toolAccessPolicy = toolAccessPolicy;
+
 		for (AgentTool tool : tools) {
 			ToolDefinition definition = tool.definition();
+
 			String toolName = definition.name();
 
 			if (toolMap.containsKey(toolName)) {
@@ -44,42 +54,70 @@ public class ToolRegistry {
 
 		long startTime = System.currentTimeMillis();
 
-		log.info("开始执行 Agent 工具，toolName={}, arguments={}", toolName, arguments);
+		/*
+		 * arguments 可能包含 StackTrace、Token 等内容， INFO 日志只记录工具名，完整参数进入受治理 Trace。
+		 */
+		log.info("开始执行 Agent 工具，toolName={}", toolName);
 
 		AgentTool tool = toolMap.get(toolName);
 
+		/*
+		 * 第一道边界：工具必须存在。
+		 */
 		if (tool == null) {
 			long costMs = System.currentTimeMillis() - startTime;
 
 			String errorMessage = "未知工具：" + toolName;
 
-			log.warn("Agent 工具执行失败，toolName={}, status={}, costMs={}, error={}", toolName,
-					ToolExecutionStatus.TOOL_NOT_FOUND, costMs, errorMessage);
-
 			return ToolExecutionResult.failure(toolName, ToolExecutionStatus.TOOL_NOT_FOUND, errorMessage, errorMessage,
 					costMs);
+		}
+
+		ToolDefinition definition = tool.definition();
+
+		/*
+		 * 第二道边界：检查当前运行环境是否允许执行该工具。
+		 *
+		 * 权限检查发生在参数详细校验之前， 未授权工具不继续暴露或处理更多调用细节。
+		 */
+		ToolAccessDecision accessDecision = toolAccessPolicy.evaluate(definition);
+
+		if (!accessDecision.allowed()) {
+			long costMs = System.currentTimeMillis() - startTime;
+
+			String errorMessage = accessDecision.reason();
+
+			log.warn("Agent 工具访问被拒绝，toolName={}, status={}, costMs={}, reason={}", toolName,
+					ToolExecutionStatus.PERMISSION_DENIED, costMs, errorMessage);
+
+			return ToolExecutionResult.failure(toolName, ToolExecutionStatus.PERMISSION_DENIED,
+					"当前环境不允许执行工具：" + toolName, errorMessage, costMs);
 		}
 
 		Map<String, Object> normalizedArguments;
 
 		try {
-			normalizedArguments = toolArgumentValidator.validateAndNormalize(tool.definition(), arguments);
+			/*
+			 * 第三道边界：参数必须符合机器可读工具契约。
+			 */
+			normalizedArguments = toolArgumentValidator.validateAndNormalize(definition, arguments);
 		}
 		catch (IllegalArgumentException e) {
 			long costMs = System.currentTimeMillis() - startTime;
 
 			String errorMessage = e.getMessage();
-			String result = "工具参数校验失败：" + errorMessage;
 
-			log.warn("Agent 工具参数校验失败，toolName={}, status={}, costMs={}, error={}", toolName,
-					ToolExecutionStatus.INVALID_ARGUMENT, costMs, errorMessage);
+			String result = "工具参数校验失败：" + errorMessage;
 
 			return ToolExecutionResult.failure(toolName, ToolExecutionStatus.INVALID_ARGUMENT, result, errorMessage,
 					costMs);
 		}
 
 		try {
-			String result = tool.execute(normalizedArguments);
+			/*
+			 * 参数和访问策略均通过后， 才真正占用工具执行线程池。
+			 */
+			String result = toolExecutionRunner.execute(tool, normalizedArguments);
 
 			long costMs = System.currentTimeMillis() - startTime;
 
@@ -87,6 +125,25 @@ public class ToolRegistry {
 					ToolExecutionStatus.SUCCESS, costMs, result == null ? 0 : result.length());
 
 			return ToolExecutionResult.success(toolName, result, costMs);
+		}
+		catch (ToolTimeoutException e) {
+			long costMs = System.currentTimeMillis() - startTime;
+
+			String result = "工具执行超时，已停止等待。toolName=" + toolName;
+
+			log.warn("Agent 工具执行超时，toolName={}, status={}, timeoutMs={}, costMs={}", toolName,
+					ToolExecutionStatus.TIMEOUT, e.getTimeoutMs(), costMs);
+
+			return ToolExecutionResult.failure(toolName, ToolExecutionStatus.TIMEOUT, result, e.getMessage(), costMs);
+		}
+		catch (ToolBusinessException e) {
+			long costMs = System.currentTimeMillis() - startTime;
+
+			log.warn("Agent 工具业务失败，toolName={}, status={}, errorCode={}, costMs={}, error={}", toolName,
+					ToolExecutionStatus.BUSINESS_ERROR, e.getErrorCode(), costMs, e.getMessage());
+
+			return ToolExecutionResult.businessFailure(toolName, e.getErrorCode(), e.getResult(), e.getMessage(),
+					costMs);
 		}
 		catch (Exception e) {
 			long costMs = System.currentTimeMillis() - startTime;
@@ -121,6 +178,10 @@ public class ToolRegistry {
 				.append(definition.sideEffect())
 				.append(", riskLevel=")
 				.append(definition.riskLevel())
+				.append(", timeoutMs=")
+				.append(definition.timeoutMs())
+				.append(", requiredPermissions=")
+				.append(definition.requiredPermissions())
 				.append("\n\n");
 		}
 
@@ -162,7 +223,6 @@ public class ToolRegistry {
 			}
 
 			if (!parameter.allowedValues().isEmpty()) {
-
 				builder.append(", allowedValues=").append(parameter.allowedValues());
 			}
 

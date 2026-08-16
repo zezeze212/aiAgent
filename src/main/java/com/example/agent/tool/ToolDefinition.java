@@ -48,4 +48,14 @@ public record ToolDefinition(String name, String description, List<ToolParameter
 		}
 	}
 
+	private ToolDefinition buildDefinition(String name, List<ToolParameterDefinition> parameters) {
+
+		return buildDefinition(name, parameters, 1000L);
+	}
+
+	private ToolDefinition buildDefinition(String name, List<ToolParameterDefinition> parameters, Long timeoutMs) {
+
+		return new ToolDefinition(name, "测试工具", parameters, "测试结果", timeoutMs, true, ToolSideEffect.NONE,
+				ToolRiskLevel.LOW, List.of("TEST_READ"));
+	}
 }

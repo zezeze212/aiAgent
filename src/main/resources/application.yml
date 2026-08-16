@@ -20,3 +20,11 @@ deepseek:
 
 agent:
   max-execution-time-ms: 120000
+
+  tool-governance:
+    allowed-permissions:
+      - DATABASE_METADATA_READ
+      - LOCAL_DIAGNOSTIC_ANALYZE
+
+    max-risk-level: LOW
+    allow-side-effect-tools: false
