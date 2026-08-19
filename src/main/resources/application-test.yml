@@ -8,5 +8,18 @@ spring:
   flyway:
     enabled: false
 
+  ai:
+    model:
+      chat: openai
+      embedding: none
+
+    openai:
+      api-key: test-only-not-used
+      base-url: http://localhost
+      chat:
+        options:
+          model: test-model
+
 deepseek:
   api-key: test-only-not-used
+  model: test-model

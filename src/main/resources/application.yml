@@ -7,15 +7,28 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
 
+  ai:
+    model:
+      chat: openai
+      embedding: none
+
+    openai:
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
 
+# 旧 WebClient 调用链继续使用这组配置。
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}
   base-url: https://api.deepseek.com
-  model: deepseek-chat
+  model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
   timeout-ms: 30000
 
 agent:
