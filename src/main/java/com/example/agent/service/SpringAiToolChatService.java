@@ -1,0 +1,153 @@
+package com.example.agent.service;
+
+import com.example.agent.config.AgentProperties;
+import com.example.agent.dto.AgentAskResponse;
+import com.example.agent.support.AgentJsonHelper;
+import com.example.agent.tool.springai.SpringAiDiagnosticTools;
+import com.example.agent.tool.springai.SpringAiKnowledgeSupport;
+import com.example.agent.tool.springai.SpringAiToolRunContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.UUID;
+
+@Slf4j
+@Service
+public class SpringAiToolChatService {
+
+	private static final String SYSTEM_PROMPT = """
+			你是一个 Java 后端故障诊断助手，可以使用数据库和异常分析工具获取确定性证据。
+
+			工具选择规则：
+
+			1. 查询数据库表字段、类型、默认值、可空性或注释时，
+			   使用 getTableSchema。
+
+			2. SQL、MyBatis 或 JDBC 报错需要结合真实表结构诊断时，
+			   使用 analyzeSqlErrorWithSchema。
+			   该工具内部已经查询表结构，不要重复调用 getTableSchema。
+
+			3. 一般 Java Exception、Error 或完整 StackTrace，
+			   使用 analyzeStackTrace。
+
+			4. Java、Spring 或数据库概念问题不要调用工具。
+
+			回答规则：
+
+			1. 工具结果是确定性证据，必须优先于模型自身知识。
+			2. 不得编造工具结果中不存在的表、字段、异常或代码位置。
+			3. 应先说明直接原因，再说明证据，最后给出排查建议。
+			4. 不要使用相同参数重复调用同一个工具。
+			""";
+
+	private final ChatClient chatClient;
+
+	private final SpringAiDiagnosticTools diagnosticTools;
+
+	private final AgentProperties agentProperties;
+
+	private final ObjectMapper objectMapper;
+
+	private final AgentJsonHelper agentJsonHelper;
+
+	private final AgentLogService agentLogService;
+
+	private final SpringAiKnowledgeSupport knowledgeSupport;
+
+	public SpringAiToolChatService(ChatClient.Builder chatClientBuilder, SpringAiDiagnosticTools diagnosticTools,
+			AgentProperties agentProperties, ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper,
+			AgentLogService agentLogService, SpringAiKnowledgeSupport knowledgeSupport) {
+
+		this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
+
+		this.diagnosticTools = diagnosticTools;
+		this.agentProperties = agentProperties;
+		this.objectMapper = objectMapper;
+		this.agentJsonHelper = agentJsonHelper;
+		this.agentLogService = agentLogService;
+		this.knowledgeSupport = knowledgeSupport;
+	}
+
+	public AgentAskResponse chat(String userMessage) {
+		String traceId = UUID.randomUUID().toString().substring(0, 8);
+
+		long agentStartTime = System.currentTimeMillis();
+
+		SpringAiToolRunContext runContext = new SpringAiToolRunContext(traceId, userMessage,
+				agentProperties.getMaxExecutionTimeMs(), objectMapper, agentJsonHelper);
+
+		log.info("Spring AI Agent 请求开始，traceId={}, userMessageLength={}", traceId,
+				userMessage == null ? 0 : userMessage.length());
+
+		String answer;
+		boolean chatSuccess;
+		String chatErrorMessage = null;
+
+		long chatStartTime = System.currentTimeMillis();
+		String modelUserMessage = knowledgeSupport.prepareInitialUserMessage(runContext);
+
+		try {
+			String modelAnswer = chatClient.prompt()
+				.user(modelUserMessage)
+				.tools(diagnosticTools)
+				/*
+				 * ToolContext 只传给本地工具，不发送给 DeepSeek。
+				 */
+				.toolContext(Map.of(SpringAiToolRunContext.CONTEXT_KEY, runContext))
+				.call()
+				.content();
+
+			/*
+			 * 双重保护： 即使某些情况下框架没有把工具异常继续抛出， 只要上下文已经记录失败，就不能使用模型生成的答案覆盖它。
+			 */
+			if (runContext.hasAbortAnswer()) {
+				answer = runContext.getAbortAnswer();
+				chatSuccess = false;
+				chatErrorMessage = "Spring AI Tool Calling 因工具治理结果终止";
+			}
+			else {
+				answer = modelAnswer;
+				chatSuccess = true;
+			}
+		}
+		catch (Exception e) {
+			chatSuccess = false;
+
+			if (runContext.hasAbortAnswer()) {
+				answer = runContext.getAbortAnswer();
+				chatErrorMessage = "Spring AI Tool Calling 因工具治理结果终止";
+			}
+			else {
+				answer = "Spring AI 调用失败，请稍后重试。";
+				chatErrorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+			}
+
+			log.warn("Spring AI Agent 调用未正常完成，traceId={}, hasToolAbort={}, exceptionType={}", traceId,
+					runContext.hasAbortAnswer(), e.getClass().getSimpleName());
+		}
+
+		long chatCostMs = System.currentTimeMillis() - chatStartTime;
+
+		runContext.addSpringAiChatStep(chatSuccess, chatCostMs, answer, chatErrorMessage);
+
+		long agentCostMs = System.currentTimeMillis() - agentStartTime;
+
+		AgentAskResponse response = runContext.buildResponse(answer, agentCostMs);
+
+		try {
+			agentLogService.saveRunLog(userMessage, response);
+		}
+		catch (Exception e) {
+			log.error("Spring AI Agent 运行日志保存失败，已保留本次回答，traceId={}", traceId, e);
+		}
+
+		log.info("Spring AI Agent 请求完成，traceId={}, usedTool={}, toolCallCount={}, agentCostMs={}", traceId,
+				response.getUsedTool(), runContext.getToolCallCount(), response.getAgentCostMs());
+
+		return response;
+	}
+
+}

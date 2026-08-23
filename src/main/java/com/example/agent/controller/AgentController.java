@@ -5,6 +5,7 @@ import com.example.agent.dto.*;
 import com.example.agent.exception.BusinessException;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.service.SimpleAgentService;
+import com.example.agent.service.SpringAiToolChatService;
 import com.example.agent.support.AgentTraceSanitizer;
 import com.example.agent.tool.ToolRegistry;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AgentController {
 
-	private final SimpleAgentService simpleAgentService;
+	private final SpringAiToolChatService springAiToolChatService;
 
 	private final ToolRegistry toolRegistry;
 
@@ -36,12 +37,15 @@ public class AgentController {
 		}
 
 		/*
-		 * Agent 已经完成真实计算和数据库保存。
+		 * /agent/ask 是正式 Agent 入口。
 		 *
-		 * 这里位于 HTTP 输出边界，只治理对外返回的 Trace， 不修改最终 answer，也不会影响此前的模型/Tool 执行。
+		 * 当前已经切换为 Spring AI 原生 Tool Calling 链路， 统一执行知识检索、工具治理、Trace 记录和运行日志保存。
 		 */
-		AgentAskResponse response = simpleAgentService.ask(request.getMessage());
+		AgentAskResponse response = springAiToolChatService.chat(request.getMessage());
 
+		/*
+		 * Service 已经完成真实计算和数据库保存。 这里位于 HTTP 输出边界，只治理对外返回的 Trace。
+		 */
 		agentTraceSanitizer.sanitize(response.getSteps());
 
 		return Result.success(response);

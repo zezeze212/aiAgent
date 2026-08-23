@@ -18,6 +18,12 @@ spring:
       chat:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+          extra-body:
+            thinking:
+              type: disabled
+
+    tools:
+      throw-exception-on-error: true
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml

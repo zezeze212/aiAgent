@@ -19,6 +19,9 @@ spring:
       chat:
         options:
           model: test-model
+          extra-body:
+            thinking:
+              type: disabled
 
 deepseek:
   api-key: test-only-not-used
