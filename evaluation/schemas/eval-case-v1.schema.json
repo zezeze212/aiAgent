@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ai-agent-demo/eval-case-v1.schema.json",
+  "title": "ai-agent-demo Evaluation Case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetVersion",
+    "id",
+    "category",
+    "tags",
+    "input",
+    "expected"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "eval-case-v1"
+    },
+    "datasetVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "category": {
+      "enum": [
+        "GENERAL_KNOWLEDGE_NO_TOOL",
+        "TABLE_SCHEMA",
+        "SQL_SCHEMA_DIAGNOSIS",
+        "STACK_TRACE",
+        "BUSINESS_ERROR",
+        "CLARIFICATION",
+        "GROUNDING_SAFETY"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "expected": {
+      "$ref": "#/$defs/expected"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "factGroups": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "bodyCode"
+      ],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "bodyCode": {
+          "type": "integer"
+        }
+      }
+    },
+    "argumentAssertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requiredKeys",
+        "equals",
+        "contains"
+      ],
+      "properties": {
+        "requiredKeys": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "equals": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "contains": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stringArray"
+          }
+        }
+      }
+    },
+    "resultAssertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jsonPathEquals",
+        "jsonPathContains",
+        "textContains"
+      ],
+      "properties": {
+        "jsonPathEquals": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "jsonPathContains": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stringArray"
+          }
+        },
+        "textContains": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "toolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "arguments",
+        "status",
+        "errorCode",
+        "resultAssertions"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "$ref": "#/$defs/argumentAssertions"
+        },
+        "status": {
+          "enum": [
+            "SUCCESS",
+            "INVALID_ARGUMENT",
+            "TOOL_NOT_FOUND",
+            "PERMISSION_DENIED",
+            "TIMEOUT",
+            "BUSINESS_ERROR",
+            "EXECUTION_ERROR"
+          ]
+        },
+        "errorCode": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "resultAssertions": {
+          "$ref": "#/$defs/resultAssertions"
+        }
+      }
+    },
+    "ragExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "source"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "MATCHED",
+            "NOT_MATCHED",
+            "SKIPPED_PRE_MATCH",
+            "NOT_RUN"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "rag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preDecision",
+        "postTool"
+      ],
+      "properties": {
+        "preDecision": {
+          "$ref": "#/$defs/ragExpectation"
+        },
+        "postTool": {
+          "$ref": "#/$defs/ragExpectation"
+        }
+      }
+    },
+    "chat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "success"
+      ],
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceFactGroups",
+        "requiredBehaviorGroups",
+        "forbiddenClaimPatterns"
+      ],
+      "properties": {
+        "evidenceFactGroups": {
+          "$ref": "#/$defs/factGroups"
+        },
+        "requiredBehaviorGroups": {
+          "$ref": "#/$defs/factGroups"
+        },
+        "forbiddenClaimPatterns": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "http",
+        "toolCallMatch",
+        "toolCalls",
+        "rag",
+        "chat",
+        "answer"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "ANSWER",
+            "CLARIFICATION",
+            "BUSINESS_ERROR"
+          ]
+        },
+        "http": {
+          "$ref": "#/$defs/http"
+        },
+        "toolCallMatch": {
+          "const": "EXACT_ORDER"
+        },
+        "toolCalls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toolCall"
+          }
+        },
+        "rag": {
+          "$ref": "#/$defs/rag"
+        },
+        "chat": {
+          "$ref": "#/$defs/chat"
+        },
+        "answer": {
+          "$ref": "#/$defs/answer"
+        }
+      }
+    }
+  }
+}
