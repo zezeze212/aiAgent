@@ -37,3 +37,10 @@ build/
 /.env.*
 !/.env.example
 /database-tool-test.log
+
+# Evaluation 本地运行产物
+/evaluation/results/*
+!/evaluation/results/.gitkeep
+
+# Python Evaluation virtual environment
+/.venv-eval/

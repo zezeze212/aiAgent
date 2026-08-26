@@ -290,7 +290,8 @@ def extract_chat(data: dict[str, Any]) -> dict[str, Any]:
     chat_steps = [
         step
         for step in data.get("steps") or []
-        if isinstance(step, dict) and step.get("stepName") == "SPRING_AI_CHAT"
+        if isinstance(step, dict)
+        and step.get("stepName") in {"SPRING_AI_CHAT", "AGENT_CLARIFICATION"}
     ]
 
     if not chat_steps:

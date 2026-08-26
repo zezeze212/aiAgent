@@ -36,11 +36,13 @@ public class SpringAiDiagnosticTools {
 	@Tool(name = "getTableSchema", description = """
 			查询当前 MySQL 数据库中指定表的真实字段结构。
 			当用户询问某张表有哪些字段、字段类型、默认值、是否可空或字段注释时使用。
+			只有当用户明确提供表名，或用户提供的完整 SQL 能唯一确定目标表时才能调用。
+			如果无法确定表名，不得猜测或使用示例表名，应先请用户补充表名或完整 SQL。
 			如果用户提供的是 SQL 或 MyBatis 报错并要求结合真实表结构诊断，
 			应优先使用 analyzeSqlErrorWithSchema。
 			""")
-	public String getTableSchema(@ToolParam(description = "数据库表名，只允许字母、数字和下划线，例如 agent_run_log") String tableName,
-			ToolContext toolContext) {
+	public String getTableSchema(@ToolParam(description = "数据库表名。必须来自用户明确提供的内容，不得猜测；只允许字母、数字和下划线") String tableName,
+								 ToolContext toolContext) {
 
 		Map<String, Object> arguments = new LinkedHashMap<>();
 		arguments.put("tableName", tableName);
@@ -55,9 +57,9 @@ public class SpringAiDiagnosticTools {
 			应优先使用 analyzeSqlErrorWithSchema。
 			""")
 	public String analyzeStackTrace(@ToolParam(description = "完整的 Java 异常 StackTrace 文本") String stackTrace,
-			@ToolParam(description = "可选的业务代码包名前缀，例如 com.example.agent",
-					required = false) String applicationPackagePrefix,
-			ToolContext toolContext) {
+									@ToolParam(description = "可选的业务代码包名前缀，例如 com.example.agent",
+											required = false) String applicationPackagePrefix,
+									ToolContext toolContext) {
 
 		Map<String, Object> arguments = new LinkedHashMap<>();
 		arguments.put("stackTrace", stackTrace);
@@ -73,10 +75,13 @@ public class SpringAiDiagnosticTools {
 			分析 SQL、MyBatis 或 JDBC 报错，并结合指定数据库表的真实结构进行诊断。
 			适用于 Unknown column、字段不存在、实体字段与表字段不一致、
 			Mapper SQL 与真实数据库结构不一致等问题。
+			只有当用户明确提供表名，或用户提供的完整 SQL 能唯一确定目标表时才能调用。
+			如果日志只有字段名但没有表名，不得猜测目标表，应先请用户补充表名或完整 SQL。
 			该工具内部已经查询真实表结构，调用后通常不需要再调用 getTableSchema。
 			""")
 	public String analyzeSqlErrorWithSchema(@ToolParam(description = "完整的 SQL、MyBatis、JDBC 或相关 Java 报错日志") String log,
-			@ToolParam(description = "需要对照真实结构的数据库表名，例如 agent_run_log") String tableName, ToolContext toolContext) {
+											@ToolParam(description = "需要对照真实结构的数据库表名。必须来自用户明确提供的内容或完整 SQL，不得猜测") String tableName,
+											ToolContext toolContext) {
 
 		Map<String, Object> arguments = new LinkedHashMap<>();
 		arguments.put("log", log);
@@ -88,6 +93,8 @@ public class SpringAiDiagnosticTools {
 	private String executeGovernedTool(String toolName, Map<String, Object> arguments, ToolContext toolContext) {
 
 		SpringAiToolRunContext runContext = resolveRunContext(toolContext);
+
+		validateTableNameEvidence(toolName, arguments, runContext);
 
 		log.info("Spring AI 请求执行受治理工具，traceId={}, toolName={}", runContext == null ? null : runContext.getTraceId(),
 				toolName);
@@ -109,6 +116,24 @@ public class SpringAiDiagnosticTools {
 		String toolPayload = buildModelToolResult(result);
 
 		return knowledgeSupport.appendKnowledgeToToolPayload(toolPayload, knowledgeResult);
+	}
+
+	private void validateTableNameEvidence(String toolName, Map<String, Object> arguments,
+										   SpringAiToolRunContext runContext) {
+		if (!"getTableSchema".equals(toolName) && !"analyzeSqlErrorWithSchema".equals(toolName)) {
+			return;
+		}
+
+		Object tableNameValue = arguments.get("tableName");
+		String tableName = tableNameValue == null ? null : String.valueOf(tableNameValue);
+
+		if (SpringAiToolAvailabilityPolicy.hasExplicitTableNameEvidence(runContext.getUserMessage(), tableName)) {
+			return;
+		}
+
+		String errorMessage = "缺少可验证的表名：tableName 必须来自原始用户问题，请补充表名或包含目标表的完整 SQL。";
+
+		runContext.rejectToolCall("表名证据保护", toolName, arguments, errorMessage);
 	}
 
 	private SpringAiToolRunContext resolveRunContext(ToolContext toolContext) {
