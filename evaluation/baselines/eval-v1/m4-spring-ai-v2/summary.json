@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "eval-summary-v1",
+  "runId": "20260827-191440-deepseek-v4-flash-eval-v1-seed-r2",
+  "datasetVersion": "eval-v1-seed-r2",
+  "versions": {
+    "evaluator": "python-rule-evaluator-v2",
+    "prompt": "spring-ai-system-v2",
+    "model": "deepseek-v4-flash",
+    "knowledge": "simple-rag-v2",
+    "code": "cbf30f43f6b70c5223d863f890e612edc2430d35"
+  },
+  "requestCount": 14,
+  "metrics": {
+    "executionSuccessRate": {
+      "passed": 14,
+      "total": 14,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "httpStatusAccuracy": {
+      "passed": 14,
+      "total": 14,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "bodyCodeAccuracy": {
+      "passed": 14,
+      "total": 14,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "needToolAccuracy": {
+      "passed": 14,
+      "total": 14,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "toolNameAccuracy": {
+      "passed": 8,
+      "total": 8,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "argumentCompleteness": {
+      "passed": 11,
+      "total": 11,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "argumentAccuracy": {
+      "passed": 17,
+      "total": 17,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "toolStatusAccuracy": {
+      "passed": 8,
+      "total": 8,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "toolErrorCodeAccuracy": {
+      "passed": 8,
+      "total": 8,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "toolEvidenceAccuracy": {
+      "passed": 17,
+      "total": 17,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "ragAccuracy": {
+      "passed": 28,
+      "total": 28,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "chatSuccessAccuracy": {
+      "passed": 14,
+      "total": 14,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "answerEvidenceCoverage": {
+      "passed": 18,
+      "total": 18,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "requiredBehaviorCoverage": {
+      "passed": 10,
+      "total": 10,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "businessErrorHandlingRate": {
+      "passed": 2,
+      "total": 2,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "clarificationHandlingRate": {
+      "passed": 3,
+      "total": 3,
+      "percentage": 100.0,
+      "failedCaseIds": []
+    },
+    "unsupportedAnswerProxyRate": {
+      "matchedCases": 0,
+      "applicableCases": 11,
+      "percentage": 0.0,
+      "matchedCaseIds": [],
+      "direction": "lower_is_better",
+      "scope": "Only configured forbiddenClaimPatterns; not a complete groundedness judge."
+    }
+  },
+  "counts": {
+    "toolCalls": 8,
+    "modelCalls": {
+      "value": null,
+      "display": "N/A",
+      "reason": "The current Java Trace does not expose real model invocation count."
+    }
+  },
+  "latency": {
+    "serverAgentCost": {
+      "count": 14,
+      "minMs": 1.0,
+      "meanMs": 3348.286,
+      "p50Ms": 3607.0,
+      "p95Ms": 5732.0,
+      "maxMs": 5732.0,
+      "percentileMethod": "nearest-rank"
+    },
+    "clientWallTime": {
+      "count": 14,
+      "minMs": 46.512,
+      "meanMs": 3399.194,
+      "p50Ms": 3655.279,
+      "p95Ms": 5787.089,
+      "maxMs": 5787.089,
+      "percentileMethod": "nearest-rank"
+    },
+    "note": "A 14-case seed run validates collection and statistics only; it is not a stable performance conclusion."
+  },
+  "notes": [
+    "Each metric is reported independently; no weighted total score is generated.",
+    "toolNameAccuracy is evaluated only for cases that expect at least one tool call.",
+    "argument contains and Tool result contains values are counted as atomic assertions.",
+    "ragAccuracy counts PRE_DECISION and POST_TOOL as two phase-level assertions per request; state and source must both match."
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "eval-run-manifest-v1",
+  "runId": "20260827-191440-deepseek-v4-flash-eval-v1-seed-r2",
+  "status": "COMPLETED",
+  "startedAt": "2026-08-27T19:14:40.177+08:00",
+  "finishedAt": "2026-08-27T19:15:27.821+08:00",
+  "target": {
+    "baseUrl": "http://localhost:8088",
+    "endpoint": "/agent/ask",
+    "requestTimeoutSeconds": 150
+  },
+  "versions": {
+    "evaluator": "python-rule-evaluator-v2",
+    "prompt": "spring-ai-system-v2",
+    "model": "deepseek-v4-flash",
+    "knowledge": "simple-rag-v2",
+    "code": "cbf30f43f6b70c5223d863f890e612edc2430d35"
+  },
+  "inputs": {
+    "configPath": "D:\\code\\ai-agent-demo\\evaluation\\configs\\local-deepseek-v2.json",
+    "configSha256": "fa3cdd95581614e37a9994fef9e9ff9c8318bdb60f10fbf174c3e11d99ce0181",
+    "datasetPath": "D:\\code\\ai-agent-demo\\evaluation\\datasets\\eval-v1-seed.jsonl",
+    "datasetVersion": "eval-v1-seed-r2",
+    "datasetSha256": "58766fe3b578b37d48d27a54a9e7bef492df252539ce2e226a77120d12b377a5",
+    "knowledgePath": "D:\\code\\ai-agent-demo\\src\\main\\resources\\docs\\knowledge",
+    "knowledgeSha256": "a8ce270e07d6145fe6263bc4b7f05d11d5d3a09872977918d6794f090c54a909"
+  },
+  "execution": {
+    "concurrency": 1,
+    "repetitions": 1,
+    "selectedCaseCount": 14,
+    "plannedRequestCount": 14
+  },
+  "result": {
+    "succeededRequestCount": 14,
+    "failedRequestCount": 0
+  }
+}
