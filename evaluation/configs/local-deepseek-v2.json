@@ -1,4 +1,4 @@
-{
+﻿{
   "schemaVersion": "eval-run-config-v1",
   "baseUrl": "http://localhost:8088",
   "endpoint": "/agent/ask",
@@ -6,9 +6,10 @@
   "concurrency": 1,
   "repetitions": 1,
   "versions": {
-    "evaluator": "python-rule-evaluator-v1",
+    "evaluator": "python-rule-evaluator-v2",
     "prompt": "spring-ai-system-v2",
     "model": "deepseek-v4-flash",
     "knowledge": "simple-rag-v2"
   }
 }
+
