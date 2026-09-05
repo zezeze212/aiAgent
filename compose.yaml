@@ -32,5 +32,17 @@ services:
       retries: 20
       start_period: 30s
 
+  qdrant:
+    image: qdrant/qdrant:v1.19.0
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:${AI_AGENT_QDRANT_HTTP_PORT:-6333}:6333"
+      - "127.0.0.1:${AI_AGENT_QDRANT_GRPC_PORT:-6334}:6334"
+
+    volumes:
+      - ai_agent_qdrant_data:/qdrant/storage
+
 volumes:
   ai_agent_mysql_data:
+  ai_agent_qdrant_data:

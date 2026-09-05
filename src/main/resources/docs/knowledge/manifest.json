@@ -1,0 +1,35 @@
+{
+  "knowledgeVersion": "m5-seed-v1",
+  "documents": [
+    {
+      "source": "docs/knowledge/sql/unknown-column.md",
+      "title": "Unknown column 排查指南",
+      "category": "mysql",
+      "visibility": "public"
+    },
+    {
+      "source": "docs/knowledge/sql/table-not-exist.md",
+      "title": "Table doesn't exist 排查指南",
+      "category": "mysql",
+      "visibility": "public"
+    },
+    {
+      "source": "docs/knowledge/sql/duplicate-entry.md",
+      "title": "Duplicate entry 排查指南",
+      "category": "mysql",
+      "visibility": "public"
+    },
+    {
+      "source": "docs/knowledge/sql/data-too-long.md",
+      "title": "Data too long 排查指南",
+      "category": "mysql",
+      "visibility": "public"
+    },
+    {
+      "source": "docs/knowledge/sql/foreign-key-constraint.md",
+      "title": "Foreign key constraint 排查指南",
+      "category": "mysql",
+      "visibility": "public"
+    }
+  ]
+}

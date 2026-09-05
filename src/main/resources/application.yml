@@ -10,7 +10,7 @@ spring:
   ai:
     model:
       chat: openai
-      embedding: none
+      embedding: ollama
 
     openai:
       api-key: ${DEEPSEEK_API_KEY}
@@ -21,6 +21,20 @@ spring:
           extra-body:
             thinking:
               type: disabled
+
+    ollama:
+      base-url: ${AI_AGENT_OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        model: ${AI_AGENT_EMBEDDING_MODEL:bge-m3:latest}
+
+    vectorstore:
+      type: qdrant
+      qdrant:
+        host: ${AI_AGENT_QDRANT_HOST:localhost}
+        port: ${AI_AGENT_QDRANT_GRPC_PORT:6334}
+        collection-name: ${AI_AGENT_QDRANT_COLLECTION:ai_agent_knowledge_v1}
+        use-tls: false
+        initialize-schema: true
 
     tools:
       throw-exception-on-error: true
@@ -47,3 +61,7 @@ agent:
 
     max-risk-level: LOW
     allow-side-effect-tools: false
+
+  rag:
+    vector:
+      enabled: true

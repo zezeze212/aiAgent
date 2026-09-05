@@ -34,8 +34,8 @@ class SpringAiToolRunContextTest {
 
 		assertThatThrownBy(() -> context.executeGovernedTool("getTableSchema", arguments,
 				() -> ToolExecutionResult.success("getTableSchema", "[]", 10L)))
-				.isInstanceOf(SpringAiToolAbortException.class)
-				.hasMessageContaining("重复");
+			.isInstanceOf(SpringAiToolAbortException.class)
+			.hasMessageContaining("重复");
 
 		assertThat(context.getToolCallCount()).isEqualTo(1);
 
@@ -59,8 +59,8 @@ class SpringAiToolRunContextTest {
 
 		assertThatThrownBy(() -> context.executeGovernedTool("getTableSchema", Map.of("tableName", "table_4"),
 				() -> ToolExecutionResult.success("getTableSchema", "[]", 5L)))
-				.isInstanceOf(SpringAiToolAbortException.class)
-				.hasMessageContaining("最大工具调用次数");
+			.isInstanceOf(SpringAiToolAbortException.class)
+			.hasMessageContaining("最大工具调用次数");
 
 		assertThat(context.getToolCallCount()).isEqualTo(3);
 	}
@@ -80,8 +80,8 @@ class SpringAiToolRunContextTest {
 
 		assertThatThrownBy(() -> context.executeGovernedTool("getTableSchema", Map.of("tableName", "agent_run_log"),
 				() -> ToolExecutionResult.success("getTableSchema", "[]", 5L)))
-				.isInstanceOf(SpringAiToolAbortException.class)
-				.hasMessageContaining("执行时间");
+			.isInstanceOf(SpringAiToolAbortException.class)
+			.hasMessageContaining("执行时间");
 
 		assertThat(context.getToolCallCount()).isZero();
 	}

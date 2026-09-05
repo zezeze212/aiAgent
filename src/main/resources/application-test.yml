@@ -13,6 +13,9 @@ spring:
       chat: openai
       embedding: none
 
+    vectorstore:
+      type: none
+
     openai:
       api-key: test-only-not-used
       base-url: http://localhost
@@ -22,6 +25,12 @@ spring:
           extra-body:
             thinking:
               type: disabled
+
+# 必须是顶层配置，不能放在 spring.ai 下面。
+agent:
+  rag:
+    vector:
+      enabled: false
 
 deepseek:
   api-key: test-only-not-used

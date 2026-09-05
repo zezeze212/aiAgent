@@ -1,0 +1,20 @@
+{
+  "runId": "20260905-162156-retrieval-seed-v1",
+  "datasetVersion": "retrieval-seed-v1",
+  "caseCount": 15,
+  "recalledCount": 15,
+  "missedCount": 0,
+  "recallAt5": 1.0,
+  "mrr": 0.827778,
+  "serverLatencyMs": {
+    "average": 86.6,
+    "p50": 85.0,
+    "p95": 114.0
+  },
+  "clientLatencyMs": {
+    "average": 100.932,
+    "p50": 104.13,
+    "p95": 139.755
+  },
+  "failedCaseIds": []
+}

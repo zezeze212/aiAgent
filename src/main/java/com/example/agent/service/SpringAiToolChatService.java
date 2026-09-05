@@ -79,13 +79,14 @@ public class SpringAiToolChatService {
 	private final SpringAiKnowledgeSupport knowledgeSupport;
 
 	public SpringAiToolChatService(ChatClient.Builder chatClientBuilder, SpringAiDiagnosticTools diagnosticTools,
-								   AgentProperties agentProperties, ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper,
-								   AgentLogService agentLogService, SpringAiKnowledgeSupport knowledgeSupport) {
+			AgentProperties agentProperties, ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper,
+			AgentLogService agentLogService, SpringAiKnowledgeSupport knowledgeSupport) {
 
 		this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
 
 		this.diagnosticToolCallbacks = Arrays.stream(ToolCallbacks.from(diagnosticTools))
-				.collect(Collectors.toUnmodifiableMap(callback -> callback.getToolDefinition().name(), Function.identity()));
+			.collect(
+					Collectors.toUnmodifiableMap(callback -> callback.getToolDefinition().name(), Function.identity()));
 		this.agentProperties = agentProperties;
 		this.objectMapper = objectMapper;
 		this.agentJsonHelper = agentJsonHelper;
@@ -112,9 +113,9 @@ public class SpringAiToolChatService {
 		String modelUserMessage = knowledgeSupport.prepareInitialUserMessage(runContext);
 		Optional<String> clarificationAnswer = SpringAiRequestBoundaryPolicy.findClarificationAnswer(userMessage);
 		List<ToolCallback> availableToolCallbacks = SpringAiToolAvailabilityPolicy.selectToolNames(userMessage)
-				.stream()
-				.map(this::getDiagnosticToolCallback)
-				.toList();
+			.stream()
+			.map(this::getDiagnosticToolCallback)
+			.toList();
 
 		log.info("Spring AI 本次请求可用工具，traceId={}, toolNames={}", traceId,
 				availableToolCallbacks.stream().map(callback -> callback.getToolDefinition().name()).toList());
@@ -134,12 +135,12 @@ public class SpringAiToolChatService {
 				}
 
 				String modelAnswer = requestSpec
-						/*
-						 * ToolContext 只传给本地工具，不发送给 DeepSeek。
-						 */
-						.toolContext(Map.of(SpringAiToolRunContext.CONTEXT_KEY, runContext))
-						.call()
-						.content();
+					/*
+					 * ToolContext 只传给本地工具，不发送给 DeepSeek。
+					 */
+					.toolContext(Map.of(SpringAiToolRunContext.CONTEXT_KEY, runContext))
+					.call()
+					.content();
 
 				/*
 				 * 双重保护： 即使某些情况下框架没有把工具异常继续抛出， 只要上下文已经记录失败，就不能使用模型生成的答案覆盖它。

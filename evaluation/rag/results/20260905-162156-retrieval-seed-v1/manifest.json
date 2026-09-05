@@ -1,0 +1,21 @@
+{
+  "runId": "20260905-162156-retrieval-seed-v1",
+  "createdAt": "2026-09-05T16:21:56.807020+08:00",
+  "gitHead": "e7515472cac612feb5a544b7dd5088a5f9810634",
+  "dataset": "evaluation\\rag\\datasets\\retrieval-seed-v1.jsonl",
+  "datasetSha256": "13b92d581b0eca140de74f0fdc1400fe5bd8032ab0ed8f694826ae6138086a2d",
+  "datasetVersion": "retrieval-seed-v1",
+  "baseUrl": "http://localhost:8088",
+  "endpoint": "/rag/search",
+  "embeddingModel": "bge-m3:latest",
+  "qdrantCollection": "ai_agent_knowledge_v1",
+  "knowledgeVersion": "m5-seed-v1",
+  "caseCount": 15,
+  "topK": 5,
+  "warmup": {
+    "caseId": "unknown-column-error-001",
+    "serverCostMs": 4596,
+    "clientCostMs": 4751.991,
+    "excludedFromLatencyMetrics": true
+  }
+}

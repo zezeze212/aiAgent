@@ -33,7 +33,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Testcontainers
 @SpringBootTest(classes = DatabaseToolMySqlContainerTest.DatabaseToolTestApplication.class,
 		properties = { "spring.main.web-application-type=none", "spring.flyway.enabled=true",
-				"spring.flyway.locations=classpath:db/migration" })
+				"spring.flyway.locations=classpath:db/migration", "spring.ai.model.chat=none",
+				"spring.ai.model.embedding=none", "spring.ai.vectorstore.type=none",
+				"agent.tool-governance.allowed-permissions[0]=DATABASE_METADATA_READ",
+				"agent.tool-governance.max-risk-level=LOW", "agent.tool-governance.allow-side-effect-tools=false" })
 class DatabaseToolMySqlContainerTest {
 
 	@Container
@@ -76,22 +79,6 @@ class DatabaseToolMySqlContainerTest {
 			ToolAccessPolicy.class, AgentProperties.class })
 	static class DatabaseToolTestApplication {
 
-	}
-
-	@Bean
-	AgentProperties agentProperties() {
-		AgentProperties properties = new AgentProperties();
-
-		/*
-		 * 本测试验证数据库工具本身以及 Registry 集成， 因此显式开放数据库元数据只读权限。
-		 */
-		properties.getToolGovernance().setAllowedPermissions(List.of("DATABASE_METADATA_READ"));
-
-		properties.getToolGovernance().setMaxRiskLevel(ToolRiskLevel.LOW);
-
-		properties.getToolGovernance().setAllowSideEffectTools(false);
-
-		return properties;
 	}
 
 	@Test

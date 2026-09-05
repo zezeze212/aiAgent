@@ -55,7 +55,7 @@ class SpringAiDiagnosticToolsTest {
 		ToolCallback[] callbacks = ToolCallbacks.from(diagnosticTools);
 
 		Map<String, ToolCallback> callbackMap = Arrays.stream(callbacks)
-				.collect(Collectors.toMap(callback -> callback.getToolDefinition().name(), callback -> callback));
+			.collect(Collectors.toMap(callback -> callback.getToolDefinition().name(), callback -> callback));
 
 		assertThat(callbackMap).containsOnlyKeys("getTableSchema", "analyzeStackTrace", "analyzeSqlErrorWithSchema");
 
@@ -166,8 +166,8 @@ class SpringAiDiagnosticToolsTest {
 		SpringAiToolRunContext runContext = createRunContext("请查询 agent_run_logs 表的真实结构。");
 
 		assertThatThrownBy(() -> diagnosticTools.getTableSchema("agent_run_logs", createToolContext(runContext)))
-				.isInstanceOf(SpringAiToolAbortException.class)
-				.hasMessageContaining("未查询到表结构", "agent_run_logs", "agent_run_log");
+			.isInstanceOf(SpringAiToolAbortException.class)
+			.hasMessageContaining("未查询到表结构", "agent_run_logs", "agent_run_log");
 
 		assertThat(runContext.hasAbortAnswer()).isTrue();
 
@@ -198,13 +198,13 @@ class SpringAiDiagnosticToolsTest {
 
 	@Test
 	void shouldRejectTableNameThatDoesNotComeFromOriginalQuestion() {
-		SpringAiToolRunContext runContext = createRunContext(
-				"Unknown column 'model_name' in 'field list'，请结合真实表结构分析。");
+		SpringAiToolRunContext runContext = createRunContext("Unknown column 'model_name' in 'field list'，请结合真实表结构分析。");
 
-		assertThatThrownBy(() -> diagnosticTools.analyzeSqlErrorWithSchema(
-				"Unknown column 'model_name' in 'field list'", "model", createToolContext(runContext)))
-				.isInstanceOf(SpringAiToolAbortException.class)
-				.hasMessageContaining("缺少可验证的表名", "请补充表名");
+		assertThatThrownBy(
+				() -> diagnosticTools.analyzeSqlErrorWithSchema("Unknown column 'model_name' in 'field list'", "model",
+						createToolContext(runContext)))
+			.isInstanceOf(SpringAiToolAbortException.class)
+			.hasMessageContaining("缺少可验证的表名", "请补充表名");
 
 		assertThat(runContext.hasAbortAnswer()).isTrue();
 		assertThat(runContext.getToolCallCount()).isZero();
@@ -222,10 +222,10 @@ class SpringAiDiagnosticToolsTest {
 	 */
 	private void stubNoPostToolKnowledge() {
 		when(knowledgeSupport.retrievePostToolKnowledge(any(SpringAiToolRunContext.class), any()))
-				.thenReturn(KnowledgeSearchResult.notFound());
+			.thenReturn(KnowledgeSearchResult.notFound());
 
 		when(knowledgeSupport.appendKnowledgeToToolPayload(anyString(), any()))
-				.thenAnswer(invocation -> invocation.getArgument(0, String.class));
+			.thenAnswer(invocation -> invocation.getArgument(0, String.class));
 	}
 
 	private SpringAiToolRunContext createRunContext(String userMessage) {

@@ -74,7 +74,7 @@ public class SpringAiToolRunContext {
 	private String abortAnswer;
 
 	public SpringAiToolRunContext(String traceId, String userMessage, long maxExecutionTimeMs,
-								  ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper) {
+			ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper) {
 
 		if (traceId == null || traceId.isBlank()) {
 			throw new IllegalArgumentException("traceId 不能为空");
@@ -98,7 +98,7 @@ public class SpringAiToolRunContext {
 	 * synchronized 的目的： 如果模型一次返回多个 tool_calls，确保调用次数、重复签名和 Trace 状态不会因为并发修改而失效。
 	 */
 	public synchronized ToolExecutionResult executeGovernedTool(String toolName, Map<String, Object> arguments,
-																Supplier<ToolExecutionResult> execution) {
+			Supplier<ToolExecutionResult> execution) {
 
 		checkExecutionTimeout(toolName, arguments);
 		checkMaxToolCalls(toolName, arguments);
@@ -146,15 +146,15 @@ public class SpringAiToolRunContext {
 		}
 
 		steps
-				.add(new AgentTraceStep("SPRING_AI_CHAT", description, success, costMs, userMessage, answer, errorMessage));
+			.add(new AgentTraceStep("SPRING_AI_CHAT", description, success, costMs, userMessage, answer, errorMessage));
 	}
 
 	/**
 	 * 记录在模型调用前由请求边界策略返回的确定性澄清。
 	 */
 	public synchronized void addDeterministicClarificationStep(long costMs, String answer) {
-		steps.add(new AgentTraceStep("AGENT_CLARIFICATION", "输入证据不足，跳过模型和工具并返回确定性澄清", true,
-				costMs, userMessage, answer, null));
+		steps.add(new AgentTraceStep("AGENT_CLARIFICATION", "输入证据不足，跳过模型和工具并返回确定性澄清", true, costMs, userMessage, answer,
+				null));
 	}
 
 	/**
@@ -195,7 +195,7 @@ public class SpringAiToolRunContext {
 	 * 在真正执行工具前拒绝缺少原始输入证据的调用。
 	 */
 	synchronized void rejectToolCall(String description, String toolName, Map<String, Object> arguments,
-									 String errorMessage) {
+			String errorMessage) {
 		Map<String, Object> guardInput = new LinkedHashMap<>();
 		guardInput.put("toolName", toolName);
 		guardInput.put("arguments", arguments);
