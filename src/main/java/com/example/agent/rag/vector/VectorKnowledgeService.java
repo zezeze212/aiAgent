@@ -32,32 +32,6 @@ public class VectorKnowledgeService {
 
 	private final VectorStore vectorStore;
 
-	public VectorKnowledgeIndexResponse indexManifest() {
-		long startTime = System.currentTimeMillis();
-
-		KnowledgeManifest manifest = manifestLoader.loadManifest();
-		List<Document> documents = new ArrayList<>();
-
-		for (KnowledgeSource source : manifest.documents()) {
-			String markdown = manifestLoader.readMarkdown(source);
-			documents.addAll(sectionChunker.chunk(manifest.knowledgeVersion(), source, markdown));
-		}
-
-		if (documents.isEmpty()) {
-			throw new IllegalStateException("Manifest 没有生成任何知识 Chunk");
-		}
-
-		vectorStore.add(documents);
-
-		long costMs = System.currentTimeMillis() - startTime;
-
-		log.info("向量知识入库完成，knowledgeVersion={}, sourceCount={}, chunkCount={}, costMs={}", manifest.knowledgeVersion(),
-				manifest.documents().size(), documents.size(), costMs);
-
-		return new VectorKnowledgeIndexResponse(manifest.knowledgeVersion(), manifest.documents().size(),
-				documents.size(), costMs);
-	}
-
 	public VectorKnowledgeSearchResponse search(String query, int topK) {
 		long startTime = System.currentTimeMillis();
 

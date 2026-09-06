@@ -32,7 +32,7 @@ spring:
       qdrant:
         host: ${AI_AGENT_QDRANT_HOST:localhost}
         port: ${AI_AGENT_QDRANT_GRPC_PORT:6334}
-        collection-name: ${AI_AGENT_QDRANT_COLLECTION:ai_agent_knowledge_v1}
+        collection-name: ${AI_AGENT_QDRANT_COLLECTION:ai_agent_knowledge_managed_v1}
         use-tls: false
         initialize-schema: true
 
@@ -65,3 +65,8 @@ agent:
   rag:
     vector:
       enabled: true
+      # 同名 Embedding 模型权重发生变化时，需要更新此标识。
+      embedding-revision: bge-m3-local-v1
+      # 相对于 Java 进程工作目录；IDEA 运行目录保持为项目根目录。
+      state-directory: ./data/knowledge-index
+      qdrant-rest-url: http://localhost:6333

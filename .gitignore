@@ -44,3 +44,5 @@ build/
 
 # Python Evaluation virtual environment
 /.venv-eval/
+
+/data/knowledge-index/

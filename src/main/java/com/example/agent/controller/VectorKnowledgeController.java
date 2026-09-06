@@ -1,11 +1,10 @@
 package com.example.agent.controller;
 
 import com.example.agent.common.Result;
-import com.example.agent.dto.VectorKnowledgeIndexResponse;
-import com.example.agent.dto.VectorKnowledgeSearchResponse;
-import com.example.agent.dto.VectorRagAskRequest;
-import com.example.agent.dto.VectorRagAskResponse;
+import com.example.agent.dto.*;
 import com.example.agent.exception.BusinessException;
+import com.example.agent.rag.vector.KnowledgeIndexPlanner;
+import com.example.agent.rag.vector.KnowledgeIndexSyncService;
 import com.example.agent.rag.vector.VectorKnowledgeService;
 import com.example.agent.rag.vector.VectorRagService;
 import lombok.RequiredArgsConstructor;
@@ -32,9 +31,18 @@ public class VectorKnowledgeController {
 
 	private final VectorRagService vectorRagService;
 
+	private final KnowledgeIndexPlanner knowledgeIndexPlanner;
+
+	private final KnowledgeIndexSyncService knowledgeIndexSyncService;
+
+	/**
+	 * 同步知识索引。
+	 *
+	 * 首次建立成功状态，后续按变化执行增量写入和删除。
+	 */
 	@PostMapping("/index")
-	public Result<VectorKnowledgeIndexResponse> index() {
-		return Result.success(vectorKnowledgeService.indexManifest());
+	public Result<KnowledgeIndexSyncResponse> index() {
+		return Result.success(knowledgeIndexSyncService.sync());
 	}
 
 	@GetMapping("/search")
@@ -45,6 +53,16 @@ public class VectorKnowledgeController {
 		validateTopK(topK);
 
 		return Result.success(vectorKnowledgeService.search(query.trim(), topK));
+	}
+
+	/**
+	 * 预览知识索引变化。
+	 *
+	 * 只计算计划，不执行 Embedding、Qdrant 写入或状态保存。
+	 */
+	@PostMapping("/index/plan")
+	public Result<KnowledgeIndexPlanResponse> previewIndexPlan() {
+		return Result.success(knowledgeIndexPlanner.preview());
 	}
 
 	@PostMapping("/ask")
