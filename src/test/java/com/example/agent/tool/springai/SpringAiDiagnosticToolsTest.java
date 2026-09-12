@@ -1,6 +1,7 @@
 package com.example.agent.tool.springai;
 
 import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeSearchResult;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.ToolExecutionStatus;
@@ -221,11 +222,12 @@ class SpringAiDiagnosticToolsTest {
 	 * 不放在 @BeforeEach 中，避免只检查工具定义或工具执行失败的测试 出现 Mockito UnnecessaryStubbingException。
 	 */
 	private void stubNoPostToolKnowledge() {
-		when(knowledgeSupport.retrievePostToolKnowledge(any(SpringAiToolRunContext.class), any()))
-			.thenReturn(KnowledgeSearchResult.notFound());
+		when(knowledgeSupport.retrievePostToolKnowledge(
+				any(SpringAiToolRunContext.class), any()))
+				.thenReturn(KnowledgeRetrievalResult.empty("rule"));
 
 		when(knowledgeSupport.appendKnowledgeToToolPayload(anyString(), any()))
-			.thenAnswer(invocation -> invocation.getArgument(0, String.class));
+				.thenAnswer(invocation -> invocation.getArgument(0, String.class));
 	}
 
 	private SpringAiToolRunContext createRunContext(String userMessage) {

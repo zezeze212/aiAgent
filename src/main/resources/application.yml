@@ -63,6 +63,8 @@ agent:
     allow-side-effect-tools: false
 
   rag:
+    mode: vector
+    top-k: 5
     vector:
       enabled: true
       # 同名 Embedding 模型权重发生变化时，需要更新此标识。

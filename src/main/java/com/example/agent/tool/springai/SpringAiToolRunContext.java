@@ -3,6 +3,8 @@ package com.example.agent.tool.springai;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.rag.KnowledgeChunk;
+import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeSearchResult;
 import com.example.agent.support.AgentJsonHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,14 +33,16 @@ public class SpringAiToolRunContext {
 	private static final int MAX_TOOL_CALLS = 3;
 
 	/**
-	 * PRE_DECISION 阶段是否已经命中并注入知识。
+	 * PRE_DECISION 是否已经准备了知识上下文。
 	 *
-	 * 如果已经命中，POST_TOOL 阶段不再重复检索， 保持和旧 AgentOrchestrator 一致的行为。
+	 * 当前保持原策略：有候选时跳过 POST_TOOL 检索。
+	 * 这不代表候选已经通过可靠性验证。
 	 */
 	private boolean preDecisionKnowledgeMatched;
 
 	/**
-	 * 当前请求已经注入过的知识，避免多工具调用时重复追加相同文档。
+	 * 当前请求已经选入上下文的片段。
+	 * 按检索方式和 Chunk ID 去重，不按来源文档去重。
 	 */
 	private final Set<String> injectedKnowledgeKeys = new HashSet<>();
 
@@ -329,39 +333,43 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 记录 PRE_DECISION 检索结果。
+	 * 记录 PRE_DECISION 最终选入上下文的结果。
+	 * 去重登记由 selectFreshKnowledge 统一完成。
 	 */
-	public void recordPreDecisionKnowledge(KnowledgeSearchResult result) {
+	public synchronized void recordPreDecisionKnowledge(KnowledgeRetrievalResult result) {
 		preDecisionKnowledgeMatched = result != null && result.matched();
-
-		if (preDecisionKnowledgeMatched) {
-			rememberInjectedKnowledge(result);
-		}
 	}
 
-	public boolean hasPreDecisionKnowledge() {
+	public synchronized boolean hasPreDecisionKnowledge() {
 		return preDecisionKnowledgeMatched;
 	}
 
 	/**
-	 * 记录已经注入给模型的知识。
-	 * @return true：首次注入；false：已经注入过
+	 * 按 Chunk ID 筛选本次请求尚未使用的知识，并登记去重状态。
+	 *
+	 * 同一篇文档的不同 Chunk 必须保留。
+	 * 遍历原列表，因此筛选后仍保持检索器返回的顺序。
 	 */
-	public boolean rememberInjectedKnowledge(KnowledgeSearchResult result) {
-		if (result == null || !result.matched()) {
-			return false;
+	public synchronized KnowledgeRetrievalResult selectFreshKnowledge(
+			KnowledgeRetrievalResult result) {
+
+		List<KnowledgeChunk> freshChunks = new ArrayList<>();
+
+		for (KnowledgeChunk chunk : result.chunks()) {
+			String key = result.retriever() + ":" + chunk.chunkId();
+
+			if (injectedKnowledgeKeys.add(key)) {
+				freshChunks.add(chunk);
+			}
 		}
 
-		String knowledgeKey = Objects.toString(result.source(), "") + System.lineSeparator()
-				+ Objects.toString(result.content(), "");
-
-		return injectedKnowledgeKeys.add(knowledgeKey);
+		return new KnowledgeRetrievalResult(result.retriever(), freshChunks);
 	}
 
 	/**
 	 * Spring AI 周边组件统一通过运行上下文追加 Trace。
 	 */
-	public void addStep(AgentTraceStep step) {
+	public synchronized void addStep(AgentTraceStep step) {
 		if (step != null) {
 			steps.add(step);
 		}

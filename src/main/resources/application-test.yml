@@ -29,6 +29,7 @@ spring:
 # 必须是顶层配置，不能放在 spring.ai 下面。
 agent:
   rag:
+    mode: rule
     vector:
       enabled: false
 

@@ -5,7 +5,6 @@ import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.ChatRequest;
 import com.example.agent.dto.ChatResponse;
 import com.example.agent.exception.BusinessException;
-import com.example.agent.service.SpringAiChatService;
 import com.example.agent.service.SpringAiToolChatService;
 import com.example.agent.support.AgentTraceSanitizer;
 import lombok.RequiredArgsConstructor;

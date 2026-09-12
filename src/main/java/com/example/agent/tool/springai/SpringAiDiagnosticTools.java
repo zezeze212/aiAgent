@@ -1,6 +1,7 @@
 package com.example.agent.tool.springai;
 
 import com.example.agent.dto.ToolExecutionResult;
+import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeSearchResult;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.ToolRegistry;
@@ -90,32 +91,34 @@ public class SpringAiDiagnosticTools {
 		return executeGovernedTool("analyzeSqlErrorWithSchema", arguments, toolContext);
 	}
 
-	private String executeGovernedTool(String toolName, Map<String, Object> arguments, ToolContext toolContext) {
+	private String executeGovernedTool(
+			String toolName, Map<String, Object> arguments, ToolContext toolContext) {
 
 		SpringAiToolRunContext runContext = resolveRunContext(toolContext);
 
+		// 仍然依据原始用户输入验证表名，知识库示例不能充当参数证据。
 		validateTableNameEvidence(toolName, arguments, runContext);
 
-		log.info("Spring AI 请求执行受治理工具，traceId={}, toolName={}", runContext == null ? null : runContext.getTraceId(),
-				toolName);
+		log.info("Spring AI 请求执行受治理工具，traceId={}, toolName={}",
+				runContext.getTraceId(), toolName);
 
-		ToolExecutionResult result = runContext.executeGovernedTool(toolName, arguments,
+		ToolExecutionResult result = runContext.executeGovernedTool(
+				toolName,
+				arguments,
 				() -> toolRegistry.executeWithResult(toolName, arguments));
 
 		/*
-		 * executeGovernedTool 在业务失败、超时、权限拒绝等情况下会直接抛出 SpringAiToolAbortException。
-		 *
-		 * 因此能够执行到这里，说明工具执行成功，可以进行 POST_TOOL 检索。
+		 * 治理失败会在上面抛出异常。
+		 * 执行到这里说明工具成功，可以准备 POST_TOOL 知识。
 		 */
-		KnowledgeSearchResult knowledgeResult = knowledgeSupport.retrievePostToolKnowledge(runContext,
-				result.getResult());
+		KnowledgeRetrievalResult knowledgeResult =
+				knowledgeSupport.retrievePostToolKnowledge(
+						runContext, result.getResult());
 
-		/*
-		 * 面向模型构造工具结果： 如果 result 本身是 JSON，则还原成对象或数组， 避免作为转义后的字符串发送给模型。
-		 */
 		String toolPayload = buildModelToolResult(result);
 
-		return knowledgeSupport.appendKnowledgeToToolPayload(toolPayload, knowledgeResult);
+		return knowledgeSupport.appendKnowledgeToToolPayload(
+				toolPayload, knowledgeResult);
 	}
 
 	private void validateTableNameEvidence(String toolName, Map<String, Object> arguments,
