@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 class SpringAiToolContractParityTest {
 
 	@Test
-	void springAiToolSchemasShouldMatchLegacyToolDefinitions() throws Exception {
+	void springAiToolSchemasShouldMatchRegisteredToolDefinitions() throws Exception {
 
 		ObjectMapper objectMapper = new ObjectMapper();
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
@@ -39,11 +39,11 @@ class SpringAiToolContractParityTest {
 		/*
 		 * 这里只读取旧工具的 ToolDefinition， 不会真正查询数据库或执行工具。
 		 */
-		List<AgentTool> legacyTools = List.of(new GetTableSchemaTool(jdbcTemplate, objectMapper),
+		List<AgentTool> registeredTools = List.of(new GetTableSchemaTool(jdbcTemplate, objectMapper),
 				new AnalyzeStackTraceTool(new StackTraceParser(), objectMapper),
 				new AnalyzeSqlErrorWithSchemaTool(jdbcTemplate, objectMapper, new SqlErrorEvidenceExtractor()));
 
-		Map<String, ToolDefinition> legacyDefinitionMap = legacyTools.stream()
+		Map<String, ToolDefinition> registeredDefinitionMap = registeredTools.stream()
 			.map(AgentTool::definition)
 			.collect(Collectors.toMap(ToolDefinition::name, definition -> definition));
 
@@ -59,12 +59,12 @@ class SpringAiToolContractParityTest {
 		/*
 		 * 第一层：工具名称必须完全对等。
 		 */
-		assertThat(springAiCallbackMap.keySet()).isEqualTo(legacyDefinitionMap.keySet());
+		assertThat(springAiCallbackMap.keySet()).isEqualTo(registeredDefinitionMap.keySet());
 
-		for (Map.Entry<String, ToolDefinition> entry : legacyDefinitionMap.entrySet()) {
+		for (Map.Entry<String, ToolDefinition> entry : registeredDefinitionMap.entrySet()) {
 
 			String toolName = entry.getKey();
-			ToolDefinition legacyDefinition = entry.getValue();
+			ToolDefinition registeredDefinition = entry.getValue();
 
 			ToolCallback springAiCallback = springAiCallbackMap.get(toolName);
 
@@ -72,9 +72,10 @@ class SpringAiToolContractParityTest {
 
 			assertThat(springAiCallback.getToolDefinition().description()).as("工具描述不能为空：" + toolName).isNotBlank();
 
-			assertInputSchemaParity(objectMapper, legacyDefinition, springAiCallback);
+			assertInputSchemaParity(objectMapper, registeredDefinition, springAiCallback);
 		}
 	}
+
 
 	private void assertInputSchemaParity(ObjectMapper objectMapper, ToolDefinition legacyDefinition,
 			ToolCallback springAiCallback) throws Exception {

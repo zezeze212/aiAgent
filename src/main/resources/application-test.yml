@@ -32,7 +32,3 @@ agent:
     mode: rule
     vector:
       enabled: false
-
-deepseek:
-  api-key: test-only-not-used
-  model: test-model

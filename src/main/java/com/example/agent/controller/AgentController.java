@@ -4,7 +4,6 @@ import com.example.agent.common.Result;
 import com.example.agent.dto.*;
 import com.example.agent.exception.BusinessException;
 import com.example.agent.service.AgentLogService;
-import com.example.agent.service.SimpleAgentService;
 import com.example.agent.service.SpringAiToolChatService;
 import com.example.agent.support.AgentTraceSanitizer;
 import com.example.agent.tool.ToolRegistry;

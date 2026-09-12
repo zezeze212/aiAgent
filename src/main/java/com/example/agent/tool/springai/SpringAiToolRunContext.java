@@ -28,7 +28,7 @@ public class SpringAiToolRunContext {
 	public static final String CONTEXT_KEY = SpringAiToolRunContext.class.getName();
 
 	/**
-	 * 与旧 AgentOrchestrator 保持一致： 单次请求最多真正执行三个工具调用。
+	 * 单次 Agent 请求最多执行三个受治理工具调用。
 	 */
 	private static final int MAX_TOOL_CALLS = 3;
 
