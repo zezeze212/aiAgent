@@ -91,34 +91,27 @@ public class SpringAiDiagnosticTools {
 		return executeGovernedTool("analyzeSqlErrorWithSchema", arguments, toolContext);
 	}
 
-	private String executeGovernedTool(
-			String toolName, Map<String, Object> arguments, ToolContext toolContext) {
+	private String executeGovernedTool(String toolName, Map<String, Object> arguments, ToolContext toolContext) {
 
 		SpringAiToolRunContext runContext = resolveRunContext(toolContext);
 
 		// 仍然依据原始用户输入验证表名，知识库示例不能充当参数证据。
 		validateTableNameEvidence(toolName, arguments, runContext);
 
-		log.info("Spring AI 请求执行受治理工具，traceId={}, toolName={}",
-				runContext.getTraceId(), toolName);
+		log.info("Spring AI 请求执行受治理工具，traceId={}, toolName={}", runContext.getTraceId(), toolName);
 
-		ToolExecutionResult result = runContext.executeGovernedTool(
-				toolName,
-				arguments,
+		ToolExecutionResult result = runContext.executeGovernedTool(toolName, arguments,
 				() -> toolRegistry.executeWithResult(toolName, arguments));
 
 		/*
-		 * 治理失败会在上面抛出异常。
-		 * 执行到这里说明工具成功，可以准备 POST_TOOL 知识。
+		 * 治理失败会在上面抛出异常。 执行到这里说明工具成功，可以准备 POST_TOOL 知识。
 		 */
-		KnowledgeRetrievalResult knowledgeResult =
-				knowledgeSupport.retrievePostToolKnowledge(
-						runContext, result.getResult());
+		KnowledgeRetrievalResult knowledgeResult = knowledgeSupport.retrievePostToolKnowledge(runContext,
+				result.getResult());
 
 		String toolPayload = buildModelToolResult(result);
 
-		return knowledgeSupport.appendKnowledgeToToolPayload(
-				toolPayload, knowledgeResult);
+		return knowledgeSupport.appendKnowledgeToToolPayload(toolPayload, knowledgeResult);
 	}
 
 	private void validateTableNameEvidence(String toolName, Map<String, Object> arguments,

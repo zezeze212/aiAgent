@@ -222,12 +222,11 @@ class SpringAiDiagnosticToolsTest {
 	 * 不放在 @BeforeEach 中，避免只检查工具定义或工具执行失败的测试 出现 Mockito UnnecessaryStubbingException。
 	 */
 	private void stubNoPostToolKnowledge() {
-		when(knowledgeSupport.retrievePostToolKnowledge(
-				any(SpringAiToolRunContext.class), any()))
-				.thenReturn(KnowledgeRetrievalResult.empty("rule"));
+		when(knowledgeSupport.retrievePostToolKnowledge(any(SpringAiToolRunContext.class), any()))
+			.thenReturn(KnowledgeRetrievalResult.empty("rule"));
 
 		when(knowledgeSupport.appendKnowledgeToToolPayload(anyString(), any()))
-				.thenAnswer(invocation -> invocation.getArgument(0, String.class));
+			.thenAnswer(invocation -> invocation.getArgument(0, String.class));
 	}
 
 	private SpringAiToolRunContext createRunContext(String userMessage) {

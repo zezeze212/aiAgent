@@ -45,14 +45,30 @@ public class VectorKnowledgeController {
 		return Result.success(knowledgeIndexSyncService.sync());
 	}
 
+	/**
+	 * 检索验证入口。
+	 *
+	 * similarityThreshold 和 source 仅影响当前请求， 不修改正式 Agent 使用的服务端配置。
+	 */
 	@GetMapping("/search")
 	public Result<VectorKnowledgeSearchResponse> search(@RequestParam String query,
-			@RequestParam(defaultValue = "5") Integer topK) {
+			@RequestParam(defaultValue = "5") Integer topK, @RequestParam(required = false) Double similarityThreshold,
+			@RequestParam(required = false) String source) {
 
 		validateQuery(query);
 		validateTopK(topK);
 
-		return Result.success(vectorKnowledgeService.search(query.trim(), topK));
+		if (similarityThreshold != null
+				&& (!Double.isFinite(similarityThreshold) || similarityThreshold < 0 || similarityThreshold > 1)) {
+
+			throw new BusinessException(400, "similarityThreshold 必须是 0～1 之间的有限数值");
+		}
+
+		if (source != null && (source.isBlank() || source.length() > 500)) {
+			throw new BusinessException(400, "source 长度必须在 1～500 之间");
+		}
+
+		return Result.success(vectorKnowledgeService.search(query.trim(), topK, similarityThreshold, source));
 	}
 
 	/**

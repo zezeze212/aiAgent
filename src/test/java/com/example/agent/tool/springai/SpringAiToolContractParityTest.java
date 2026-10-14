@@ -47,11 +47,8 @@ class SpringAiToolContractParityTest {
 			.map(AgentTool::definition)
 			.collect(Collectors.toMap(ToolDefinition::name, definition -> definition));
 
-		SpringAiDiagnosticTools springAiTools = new SpringAiDiagnosticTools(
-				mock(ToolRegistry.class),
-				new AgentJsonHelper(objectMapper),
-				objectMapper,
-				mock(SpringAiKnowledgeSupport.class));
+		SpringAiDiagnosticTools springAiTools = new SpringAiDiagnosticTools(mock(ToolRegistry.class),
+				new AgentJsonHelper(objectMapper), objectMapper, mock(SpringAiKnowledgeSupport.class));
 
 		Map<String, ToolCallback> springAiCallbackMap = Arrays.stream(ToolCallbacks.from(springAiTools))
 			.collect(Collectors.toMap(callback -> callback.getToolDefinition().name(), callback -> callback));
@@ -75,7 +72,6 @@ class SpringAiToolContractParityTest {
 			assertInputSchemaParity(objectMapper, registeredDefinition, springAiCallback);
 		}
 	}
-
 
 	private void assertInputSchemaParity(ObjectMapper objectMapper, ToolDefinition legacyDefinition,
 			ToolCallback springAiCallback) throws Exception {

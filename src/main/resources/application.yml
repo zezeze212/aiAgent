@@ -59,8 +59,22 @@ agent:
   rag:
     mode: vector
     top-k: 5
+
+    context:
+      max-chunks: 5
+      max-chunk-chars: 2000
+      max-total-chars: 6000
+
     vector:
       enabled: true
+      # 本单元先保留宽松对照；不是已经校准好的拒答阈值。
+      similarity-threshold: 0.0
+
+      # 基础检索范围，由服务端配置。
+      scope:
+        category: mysql
+        visibility: public
+
       # 同名 Embedding 模型权重发生变化时，需要更新此标识。
       embedding-revision: bge-m3-local-v1
       # 相对于 Java 进程工作目录；IDEA 运行目录保持为项目根目录。

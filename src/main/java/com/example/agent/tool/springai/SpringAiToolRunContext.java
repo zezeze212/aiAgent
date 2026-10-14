@@ -35,16 +35,29 @@ public class SpringAiToolRunContext {
 	/**
 	 * PRE_DECISION 是否已经准备了知识上下文。
 	 *
-	 * 当前保持原策略：有候选时跳过 POST_TOOL 检索。
-	 * 这不代表候选已经通过可靠性验证。
+	 * 当前保持原策略：有候选时跳过 POST_TOOL 检索。 这不代表候选已经通过可靠性验证。
 	 */
 	private boolean preDecisionKnowledgeMatched;
 
 	/**
-	 * 当前请求已经选入上下文的片段。
-	 * 按检索方式和 Chunk ID 去重，不按来源文档去重。
+	 * 当前请求已经选入上下文的片段。 按检索方式和 Chunk ID 去重，不按来源文档去重。
 	 */
 	private final Set<String> injectedKnowledgeKeys = new HashSet<>();
+
+	/**
+	 * 本次请求已准备的知识正文长度与片段数。 多次 POST_TOOL 共用这份预算。
+	 */
+	private int knowledgeContextChars;
+
+	private int knowledgeContextChunks;
+
+	/**
+	 * 一次上下文筛选的结果。 selected 表示已准备的片段，不代表模型已收到或已引用。
+	 */
+	public record KnowledgeContextSelection(KnowledgeRetrievalResult selected, int candidateCount, int duplicateCount,
+			int invalidCount, int oversizedCount, int budgetSkippedCount, int addedChars, int totalChars,
+			int totalChunks) {
+	}
 
 	@Getter
 	private final String traceId;
@@ -333,8 +346,7 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 记录 PRE_DECISION 最终选入上下文的结果。
-	 * 去重登记由 selectFreshKnowledge 统一完成。
+	 * 记录 PRE_DECISION 最终选入上下文的结果。 去重登记由 selectFreshKnowledge 统一完成。
 	 */
 	public synchronized void recordPreDecisionKnowledge(KnowledgeRetrievalResult result) {
 		preDecisionKnowledgeMatched = result != null && result.matched();
@@ -345,25 +357,65 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 按 Chunk ID 筛选本次请求尚未使用的知识，并登记去重状态。
+	 * 按原始顺序筛选知识，并在请求内累计预算。
 	 *
-	 * 同一篇文档的不同 Chunk 必须保留。
-	 * 遍历原列表，因此筛选后仍保持检索器返回的顺序。
+	 * 只有被选中的片段才登记去重状态。 超限片段整块跳过，继续尝试后面的片段。
 	 */
-	public synchronized KnowledgeRetrievalResult selectFreshKnowledge(
-			KnowledgeRetrievalResult result) {
+	public synchronized KnowledgeContextSelection selectFreshKnowledge(KnowledgeRetrievalResult result, int maxChunks,
+			int maxChunkChars, int maxTotalChars) {
 
-		List<KnowledgeChunk> freshChunks = new ArrayList<>();
-
-		for (KnowledgeChunk chunk : result.chunks()) {
-			String key = result.retriever() + ":" + chunk.chunkId();
-
-			if (injectedKnowledgeKeys.add(key)) {
-				freshChunks.add(chunk);
-			}
+		if (maxChunks <= 0 || maxChunkChars <= 0 || maxTotalChars <= 0) {
+			throw new IllegalArgumentException("知识上下文预算必须大于 0");
 		}
 
-		return new KnowledgeRetrievalResult(result.retriever(), freshChunks);
+		Objects.requireNonNull(result, "检索结果不能为空");
+
+		List<KnowledgeChunk> selected = new ArrayList<>();
+
+		int duplicateCount = 0;
+		int invalidCount = 0;
+		int oversizedCount = 0;
+		int budgetSkippedCount = 0;
+		int addedChars = 0;
+
+		for (KnowledgeChunk chunk : result.chunks()) {
+			if (chunk == null || chunk.chunkId() == null || chunk.chunkId().isBlank() || chunk.content() == null
+					|| chunk.content().isBlank()) {
+				invalidCount++;
+				continue;
+			}
+
+			String key = result.retriever() + ":" + chunk.chunkId();
+
+			if (injectedKnowledgeKeys.contains(key)) {
+				duplicateCount++;
+				continue;
+			}
+
+			int chars = chunk.content().length();
+
+			if (chars > maxChunkChars) {
+				oversizedCount++;
+				continue;
+			}
+
+			if (knowledgeContextChunks >= maxChunks || chars > maxTotalChars - knowledgeContextChars) {
+				budgetSkippedCount++;
+				continue;
+			}
+
+			// 通过所有筛选后，才登记去重状态并扣减预算。
+			injectedKnowledgeKeys.add(key);
+			selected.add(chunk);
+
+			knowledgeContextChunks++;
+			knowledgeContextChars += chars;
+			addedChars += chars;
+		}
+
+		return new KnowledgeContextSelection(new KnowledgeRetrievalResult(result.retriever(), selected),
+				result.chunks().size(), duplicateCount, invalidCount, oversizedCount, budgetSkippedCount, addedChars,
+				knowledgeContextChars, knowledgeContextChunks);
 	}
 
 	/**
