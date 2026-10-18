@@ -110,7 +110,9 @@ class SpringAiKnowledgeSupportTest {
 
 		String prompt = support.prepareInitialUserMessage(context);
 
-		assertThat(prompt).isEqualTo(context.getUserMessage());
+		assertThat(prompt).contains(context.getUserMessage()).contains("本次知识检索不可用").contains("不得编造 [知识:chunkId]");
+
+		assertThat(context.getUserMessage()).isEqualTo("请解释唯一键冲突");
 		assertThat(context.hasPreDecisionKnowledge()).isFalse();
 
 		assertThat(context.getSteps()).anySatisfy(step -> {
@@ -118,6 +120,37 @@ class SpringAiKnowledgeSupportTest {
 			assertThat(step.getSuccess()).isFalse();
 			assertThat(step.getErrorMessage()).contains("向量服务不可用");
 		});
+	}
+
+	@Test
+	void shouldExplainEmptyRetrievalWithoutClaimingServiceFailure() {
+		when(retriever.retrieve(context.getUserMessage(), 5)).thenReturn(KnowledgeRetrievalResult.empty("vector"));
+
+		String prompt = support.prepareInitialUserMessage(context);
+
+		assertThat(prompt).contains(context.getUserMessage()).contains("当前条件下没有返回知识片段").doesNotContain("本次知识检索不可用");
+
+		assertThat(context.hasPreDecisionKnowledge()).isFalse();
+		assertThat(context.getPreparedKnowledgeChunkIds()).isEmpty();
+	}
+
+	@Test
+	void shouldPreserveToolEvidenceWhenKnowledgeIsUnavailable() throws Exception {
+		String payload = """
+				{
+				  "success": true,
+				  "result": {"actualColumn": "id"}
+				}
+				""";
+
+		JsonNode output = objectMapper
+			.readTree(support.appendKnowledgeToToolPayload(payload, KnowledgeRetrievalResult.empty("unavailable")));
+
+		assertThat(output.path("result")).isEqualTo(objectMapper.readTree(payload).path("result"));
+
+		assertThat(output.path("knowledge").path("status").asText()).isEqualTo("UNAVAILABLE");
+
+		assertThat(output.path("knowledge").path("chunks").size()).isZero();
 	}
 
 	@Test
@@ -166,7 +199,9 @@ class SpringAiKnowledgeSupportTest {
 
 		String prompt = support.prepareInitialUserMessage(context);
 
-		assertThat(prompt).isEqualTo(context.getUserMessage());
+		assertThat(prompt).contains(context.getUserMessage()).contains("上下文筛选后没有提供可用知识片段");
+
+		assertThat(context.getPreparedKnowledgeChunkIds()).isEmpty();
 		assertThat(context.hasPreDecisionKnowledge()).isFalse();
 
 		String toolResult = "工具证据";
@@ -176,6 +211,7 @@ class SpringAiKnowledgeSupportTest {
 		KnowledgeRetrievalResult post = support.retrievePostToolKnowledge(context, toolResult);
 
 		assertThat(post.chunks()).extracting(KnowledgeChunk::chunkId).containsExactly("fits");
+		assertThat(context.getPreparedKnowledgeChunkIds()).containsExactly("fits");
 
 		verify(retriever).retrieve(query(toolResult), 5);
 	}

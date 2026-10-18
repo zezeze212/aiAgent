@@ -45,6 +45,11 @@ public class SpringAiToolRunContext {
 	private final Set<String> injectedKnowledgeKeys = new HashSet<>();
 
 	/**
+	 * 本次请求已选入知识上下文的 Chunk ID。 用于最终回答的引用归属检查。
+	 */
+	private final Set<String> preparedKnowledgeChunkIds = new LinkedHashSet<>();
+
+	/**
 	 * 本次请求已准备的知识正文长度与片段数。 多次 POST_TOOL 共用这份预算。
 	 */
 	private int knowledgeContextChars;
@@ -404,8 +409,9 @@ public class SpringAiToolRunContext {
 				continue;
 			}
 
-			// 通过所有筛选后，才登记去重状态并扣减预算。
+			// 通过所有筛选后，才登记去重状态、引用 ID 并扣减预算。
 			injectedKnowledgeKeys.add(key);
+			preparedKnowledgeChunkIds.add(chunk.chunkId());
 			selected.add(chunk);
 
 			knowledgeContextChunks++;
@@ -416,6 +422,15 @@ public class SpringAiToolRunContext {
 		return new KnowledgeContextSelection(new KnowledgeRetrievalResult(result.retriever(), selected),
 				result.chunks().size(), duplicateCount, invalidCount, oversizedCount, budgetSkippedCount, addedChars,
 				knowledgeContextChars, knowledgeContextChunks);
+	}
+
+	/**
+	 * 返回副本，避免外部修改本次请求的引用允许集合。
+	 *
+	 * 这里记录的是已准备的上下文，不单独证明模型已接收。
+	 */
+	public synchronized Set<String> getPreparedKnowledgeChunkIds() {
+		return Set.copyOf(preparedKnowledgeChunkIds);
 	}
 
 	/**

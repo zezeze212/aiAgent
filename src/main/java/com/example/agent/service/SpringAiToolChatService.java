@@ -2,12 +2,9 @@ package com.example.agent.service;
 
 import com.example.agent.config.AgentProperties;
 import com.example.agent.dto.AgentAskResponse;
+import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.support.AgentJsonHelper;
-import com.example.agent.tool.springai.SpringAiDiagnosticTools;
-import com.example.agent.tool.springai.SpringAiKnowledgeSupport;
-import com.example.agent.tool.springai.SpringAiRequestBoundaryPolicy;
-import com.example.agent.tool.springai.SpringAiToolAvailabilityPolicy;
-import com.example.agent.tool.springai.SpringAiToolRunContext;
+import com.example.agent.tool.springai.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -179,6 +176,12 @@ public class SpringAiToolChatService {
 		}
 		else {
 			runContext.addSpringAiChatStep(chatSuccess, chatCostMs, answer, chatErrorMessage);
+
+			// 只检查正常返回的模型答案。
+			// 确定性澄清、工具治理终止和调用失败不进入此检查。
+			if (chatSuccess) {
+				auditKnowledgeCitations(runContext, answer);
+			}
 		}
 
 		long agentCostMs = System.currentTimeMillis() - agentStartTime;
@@ -196,6 +199,26 @@ public class SpringAiToolChatService {
 				response.getUsedTool(), runContext.getToolCallCount(), response.getAgentCostMs());
 
 		return response;
+	}
+
+	/**
+	 * 审计模型答案中的知识引用。 不修改答案，不发起额外模型调用。
+	 */
+	private void auditKnowledgeCitations(SpringAiToolRunContext runContext, String answer) {
+
+		KnowledgeCitationChecker.CheckResult result = KnowledgeCitationChecker.check(answer,
+				runContext.getPreparedKnowledgeChunkIds());
+
+		boolean valid = !"INVALID_IDS".equals(result.status());
+
+		String description = switch (result.status()) {
+			case "NO_CITATIONS" -> "回答未包含约定格式的知识引用，未验证引用归属";
+			case "VALID_IDS" -> "引用 ID 均属于本次准备的知识片段，未验证语义支持";
+			default -> "回答包含未提供的知识引用 ID";
+		};
+
+		runContext.addStep(new AgentTraceStep("KNOWLEDGE_CITATION_CHECK", description, valid, 0L, null,
+				agentJsonHelper.serializeForStorage(result), valid ? null : "存在不属于本次知识上下文的引用 ID"));
 	}
 
 	private ToolCallback getDiagnosticToolCallback(String toolName) {
