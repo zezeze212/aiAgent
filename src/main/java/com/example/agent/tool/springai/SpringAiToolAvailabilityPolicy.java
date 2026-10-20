@@ -22,7 +22,8 @@ public final class SpringAiToolAvailabilityPolicy {
 		.compile("(?iu)(?:表名|相关表)\\s*(?:是|为|=|:|：)?\\s*[`\"]?([a-z][a-z0-9_$]*)[`\"]?");
 
 	private static final Pattern TABLE_NAME_BEFORE_MARKER = Pattern
-		.compile("(?iu)(?<![a-z0-9_$])([a-z][a-z0-9_$]*)(?![a-z0-9_$])\\s*(?:表(?:的|结构|字段|[，。,:：、]|\\s|$)|的真实(?:表)?结构)");
+		.compile("(?iu)(?<![a-z0-9_$])([a-z][a-z0-9_$]*)(?![a-z0-9_$])" + "\\s*(?:表(?:的|结构|字段|[，。,:：、]|\\s|$)"
+				+ "|的(?:真实|实际)(?:表)?结构)");
 
 	private static final Pattern JAVA_EXCEPTION_TYPE = Pattern
 		.compile("(?u)(?:[A-Za-z_$][\\w$]*\\.)+[A-Za-z_$][\\w$]*(?:Exception|Error)\\b");
