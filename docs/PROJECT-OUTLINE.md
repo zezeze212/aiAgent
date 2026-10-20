@@ -3,7 +3,7 @@
 > 文档职责：本文件是项目定位、架构边界和 M0～M11 长期路线的唯一权威来源。  
 > 当前代码事实、验证结果、已知限制和下一阶段入口见 [CURRENT-STATUS.md](CURRENT-STATUS.md)。  
 > 初版制定：2026-08-02。  
-> 本次更新：2026-08-30（Asia/Shanghai）。
+> 本次更新：2026-10-20（Asia/Shanghai）。
 
 ## 1. 项目定位
 
@@ -58,7 +58,7 @@ Evaluation 用来测量系统，不用来制造满分。
 - 不根据单条评测用例硬编码答案、参数或工具路由；
 - 不为了把指标刷到 100% 反复修改 Prompt、数据集和生产逻辑；
 - 数据集或评分器自身出现误判时可以修正规则，但必须保留版本；
-- 评测在阶段入口、重要变更和阶段封版时运行，不作为持续打补丁循环。
+- 阶段入口、重要变更和阶段封版时先判断旧证据是否仍有效，再选择必要的评测范围；不机械重跑全套，不作为持续打补丁循环。
 
 M4 已经完成。除非用户明确要求，不再返回 M4 继续扩题、刷分或修模型个例。
 
@@ -88,16 +88,15 @@ Java / Spring Boot 承担在线主链：
 - 异步任务与 SSE；
 - Trace 与持久化。
 
-Python 承担两类明确受限的职责：
+Python 只承担离线工程：
 
 - JSONL 评测；
 - 知识清洗与分块实验；
 - 检索指标统计；
 - 报告生成；
-- AutoDL 训练和模型评测；
-- 独立 Embedding / Sparse Embedding / Reranker 推理服务。
+- AutoDL 训练和模型评测。
 
-Python 模型服务只暴露模型推理 API，不承载 Agent 编排、Tool、业务状态、权限和主数据。Java 仍是唯一在线业务主链，不使用 Python 重写 Java Agent 主后端。
+不使用 Python 重写 Java Agent 主后端。
 
 ### 2.5 工具与数据库安全
 
@@ -117,34 +116,22 @@ M2 已完成 Tool Contract / Registry / Governance；M3 已完成 Spring AI 正�
 
 > **优先使用 Spring AI 标准抽象，只保留具有业务、安全或明确教学价值的自研部分。**
 
-旧手写 Agent 链路冻结保留，用于架构对比，不再同步扩展新能力。
+旧手写 Agent 编排与重复问答入口已清理。架构对比使用 Git 历史；`SimpleRagRetriever` 作为可切换规则检索基线继续保留，不属于被删除的编排。
 
 ---
 
 ## 3. 当前架构基线
 
-当前正式链路：
+当前正式链路（M5 收尾状态）：
 
-```text
-POST /agent/ask
-  → SpringAiToolChatService
-  → SpringAiRequestBoundaryPolicy
-  → SpringAiKnowledgeSupport
-  → PRE_DECISION SimpleRagRetriever
-  → Spring AI ChatClient / DeepSeek
-  → Spring AI Tool Calling Loop
-  → SpringAiDiagnosticTools
-  → SpringAiToolRunContext
-  → ToolRegistry
-  → ToolAccessPolicy / 参数校验 / timeout / business error
-  → 具体 Tool
-  → POST_TOOL RAG（按需、去重）
-  → Spring AI 根据证据生成回答
-  → Trace 脱敏
-  → AgentLogService
-  → MySQL
-  → 同步 HTTP 返回
-```
+1. `/agent/ask` → `SpringAiToolChatService` 创建请求上下文与 traceId。
+2. `SpringAiKnowledgeSupport` 执行 PRE_DECISION 检索，通过 `KnowledgeRetriever` 选择 rule / vector，完成请求级去重与字符预算选择。
+3. 边界策略判断是否澄清，可用工具策略根据原始输入选择工具；非澄清请求进入 Spring AI `ChatClient` / DeepSeek。
+4. Spring AI 原生 Tool Calling 经 `SpringAiDiagnosticTools`、请求级治理和 `ToolRegistry` 执行具体 Tool，保留结构化结果与 Trace。
+5. 工具后按需补充知识；前置已选入知识时跳过，补充时仍受同一请求累计预算约束。
+6. 模型生成回答，执行引用 ID 审计，再进行 Trace 脱敏、日志持久化与同步响应。
+
+当前向量实现：Ollama `bge-m3`（1024 维）+ Qdrant，受管集合 `ai_agent_knowledge_managed_v1`。`GET /rag/search` 用于检索调试，不是另一套问答主链。
 
 当前三个正式 Tool：
 
@@ -152,7 +139,7 @@ POST /agent/ask
 - `analyzeSqlErrorWithSchema`；
 - `analyzeStackTrace`。
 
-旧 `SimpleAgentService / AgentOrchestrator / DeepSeekDecisionClient` 手写链路冻结保留，不承载正式入口。
+旧 `SimpleAgentService / AgentOrchestrator / DeepSeekDecisionClient` 编排及旧 `/ai/*`、`/spring-ai/*` 问答入口已清理。正式问答统一使用 `/agent/ask`。
 
 ---
 
@@ -184,11 +171,7 @@ POST /agent/ask
 
 ### 4.4 知识源
 
-个人 Wiki 可以成为知识源，但只能通过显式 manifest 筛选公开、脱敏 Markdown。必须保留来源、标题、章节、哈希、版本和更新时间，并支持增量更新与删除。不得直接导入整个私人 Wiki。
-
-M5 第一版优先选择约 15～30 篇与 Java、Spring、MySQL、Docker、模型部署和通用排障相关的高质量文档。不得导入工作项目代码、接口、表结构、日志、内部文档、人员或服务器信息。
-
-PDF 解析在 Markdown 链路稳定后，以一个公开或自有 PDF 做独立实验，不阻塞第一版 Vector RAG。
+个人 Wiki 可以成为知识源，但只能通过显式 manifest 筛选公开 Markdown。必须保留来源、标题、章节、哈希、版本和更新时间，并支持增量更新与删除。不得直接导入整个私人 Wiki。
 
 ---
 
@@ -201,13 +184,13 @@ PDF 解析在 Markdown 链路稳定后，以一个公开或自有 PDF 做独立�
 | M2 | 已完成 | Tool Contract / Governance、多类型 Tool、Trace 安全治理 | `v0.5.0-m2-closeout` |
 | M3 | 已完成 | Spring AI 主链、原生 Tool Calling、正式入口切换 | `v0.6.0-spring-ai`（本地核验） |
 | M4 | 已完成 | Python Evaluation Harness、14条校准集、50条回归集、版本化报告 | `v0.7.0-evaluation`（本地核验） |
-| M5 | 当前唯一入口 | Qdrant Dense Vector RAG 竖切、引用、检索种子集和基线数字 | `v0.8.0-vector-rag` |
-| M6 | 后续计划 | FastAPI 模型服务、Rerank、按证据实施 Hybrid、Query Rewrite、Benchmark | `v0.9.0-rag-benchmark` |
-| M7 | 后续计划 | Async Task、SSE、最小 Vue、Demo Compose 和可演示闭环 | `v0.10.0-demo-mvp` |
-| M8 | 后续计划 | DeepSeek + AutoDL 多模型、可选微调 | `v0.11.0-multi-model` |
-| M9 | 后续计划 | Micrometer / Spring AI Observability、可选 Langfuse、MCP | `v0.12.0-observable-mcp` |
-| M10 | 选做 | Elasticsearch BM25/IK 对照；Neo4j / GraphRAG 只做边界研究 | `v0.13.0-retrieval-lab` |
-| M11 | 后续计划 | CI、部署加固、README、评测报告与作品集收束 | `v1.0.0-portfolio-ready` |
+| M5 | 功能与工程验收完成；Git 封版待确认 | 受管索引、Dense RAG、预算、引用审计；全量测试 112 项通过 | `v0.8.0-vector-rag`（建议，尚未确认创建） |
+| M6 | 下一开发入口，尚未实施 | Hybrid、Rerank、Query Transform、RAG Benchmark | `v0.9.0-rag-benchmark` |
+| M7 | 后续计划 | DeepSeek + AutoDL 多模型、可选微调 | `v0.10.0-multi-model` |
+| M8 | 后续计划 | Async Task + SSE | `v0.11.0-async-sse` |
+| M9 | 后续计划 | Observability + MCP | `v0.12.0-observable-mcp` |
+| M10 | 后续计划 | Vue 诊断控制台 | `v0.13.0-console` |
+| M11 | 后续计划 | Compose、CI、部署与作品集 | `v1.0.0-portfolio-ready` |
 
 ---
 
@@ -246,107 +229,60 @@ M4 的结论是“评测框架可用”，不是“所有模型行为必须达�
 
 ---
 
-## 7. M5：Dense Vector RAG 竖切与检索基线
+## 7. M5：Knowledge + Embedding + Vector DB + Vector RAG
 
-M5 是当前唯一入口。目标不是先完成一套抽象设计，而是在最小数据契约下尽快得到第一个“可检索、可引用、可测量”的真实回答，再根据运行结果补齐知识工程。
+M5 功能与工程验收已完成。2026-10-20 全量测试 112 项通过，无失败、错误或跳过；实际接口证据与已知限制见 `CURRENT-STATUS.md`。最终提交与标签尚待确认，下一开发入口为 M6。
 
-### 7.1 已确定选型
+### 7.1 阶段目标
 
-```text
-Java / Agent：Spring AI 1.1.8
-Chat / Tool Calling：DeepSeek OpenAI-compatible API
-Dense Embedding baseline：Ollama + BGE-M3
-主向量库：Qdrant
-在线集成：Spring AI VectorStore.similaritySearch()
-规则基线：SimpleRagRetriever（保留、可切换）
-```
+真正走通：
 
-Qdrant 是唯一主向量库；M5 不引入 pgvector、Elasticsearch、Milvus、Neo4j 或第二套 Vector Store。
+索引侧：公开 Knowledge Source 经 Manifest 筛选、加载清洗、分块与元数据管理，生成 Embedding 后写入 Vector Store。
 
-Ollama 只承担 M5 的 dense embedding baseline。它不承担后续 rerank，不能被描述为最终统一模型服务。
+在线侧：查询向量化后执行 TopK / Filter，组装受预算约束的上下文，结合工具事实生成回答并记录引用。
 
-### 7.2 M5 分步
+### 7.2 M5 分步与完成记录
 
-#### M5-0：现状审计与选型——已完成
+#### M5-0：现状审计与选型
 
-已完成规则 RAG、Spring AI 1.1.8、Windows + Docker、本地依赖、Qdrant、Ollama 和后续扩展边界审计。新对话不重新讨论 Qdrant、pgvector、Milvus 或 Elasticsearch 谁更适合作为 M5 主库。
+已完成审计与选型：Spring AI 1.1.8、Ollama `bge-m3`、Qdrant；后续不重复选型。
 
-#### M5-1：端到端竖切 + 检索种子集——当前入口
+选型考虑：
 
-同步完成两条最小链路：
+- Spring AI 1.1.8 兼容性；
+- Windows + Docker 本地开发成本；
+- metadata filter；
+- Java 生态；
+- 数据持久化和调试便利性；
+- 后续 Hybrid 扩展空间。
 
-```text
-公开脱敏 Wiki Markdown
-→ 最小 manifest
-→ 简单章节切块
-→ Ollama BGE-M3 dense embedding
-→ Qdrant
-→ TopK
-→ Spring AI Prompt
-→ 带来源回答
-```
+不同时维护多个 Vector DB。
 
-以及：
+#### M5-1：知识 Manifest 与清洗
 
-```text
-10～15 条冻结检索种子题
-→ expected source / section / evidence text
-→ Recall@5 / MRR / latency baseline
-```
+已完成公开知识 Manifest、Markdown 加载与基础清洗，以及来源和版本/哈希等元数据管理。
 
-评测集不得把正确 `chunkId` 写死。Chunk 边界会随策略变化，正确证据应标注为来源文档、章节和证据文本，由评测器判断返回 Chunk 是否覆盖证据。
+#### M5-2：Chunk 与 Metadata
 
-第一版直接使用 Qdrant，不再为了过渡实现 `SimpleVectorStore`。
+已实现章节分块、窗口切分与 metadata。保留简单可解释的策略；Parent-Child、HyDE、Graph RAG 不作为 M5 必做项。
 
-#### M5-2：知识工程与可维护入库
+#### M5-3：Embedding 与入库
 
-在第一条链路可运行后补齐：
+已接入真实 Embedding / Vector Store，完成受管导入、增量更新、删除及状态维护。索引恢复能力的验证边界见当前状态文档，不将状态恢复检查等同于全部故障注入通过。
 
-- Markdown 清洗；
-- 章节感知 Chunk；
-- 可解释的 chunk size / overlap；
-- source、title、section、category、visibility、version、hash 等 metadata；
-- manifest allowlist；
-- checksum 增量新增、更新、删除和重建；
-- Embedding 模型或维度变化后的 collection 重建规则。
+#### M5-4：在线检索与引用
 
-只比较少量预先约定的 Chunk 配置，不进行无终点调参。
+已通过 `KnowledgeRetriever` 接入正式主链，保留 `SimpleRagRetriever` 作为可切换 baseline；支持范围过滤、请求级预算、空知识处理与引用 ID 审计。来源可通过 chunkId 与 Trace 对应；引用合法不等于语义正确。
 
-#### M5-3：正式主链接入、拒答与引用
+历史教学编号 M5-3A～M5-3D 的在线链路工作统一归入本节，不改写历史提交，不重复实施。
 
-把 Vector Retrieval 接入 `SpringAiKnowledgeSupport`，保留 PRE_DECISION / POST_TOOL、知识去重、Trace 和 Tool Evidence 优先级。
+#### M5-5：工程验收
 
-必须完成：
+已完成阶段全量测试（112 项，0 失败、0 错误、0 跳过）、数据库集成测试、真实 API 验证和基本检索检查。M5 验收目标是链路正确、证据可追溯、更新可维护，不围绕少数问题反复调参刷分。
 
-- 多 Chunk 结果契约；
-- TopK、threshold 和 metadata scope filter；
-- Context 去重、排序和 token budget；
-- 无可靠知识时明确拒答或降级；
-- 来源、标题、章节和 Chunk 级引用；
-- `SimpleRagRetriever` / `VectorKnowledgeRetriever` 可切换 baseline。
+本阶段不要求新增 30～50 条检索题；未执行的 M5-4A 扩题方案已取消。字符预算、引用语义未校验、模型额外推断违背工具证据等限制如实记录，后续按 M6 的比较目标处理。
 
-当前没有真实多租户认证，不为了简历制造虚假的租户和角色体系。M5 只实现真实可验证的知识范围过滤。
-
-#### M5-4：扩展检索集与工程验收
-
-链路稳定后，把检索集扩展到约 30～50 条，并冻结 seed / regression 版本。题目至少覆盖：
-
-- 自然语言改写；
-- 精确类名、错误码、配置项；
-- 中英文混合与代码；
-- 可回答与不可回答问题；
-- 多个相似文档之间的区分。
-
-M5 验收：
-
-- 真实 Qdrant 可启动、写入、检索、更新和删除；
-- 回答带可追溯引用；
-- 检索不到时不会伪造知识；
-- 输出 Recall@5、MRR、P50/P95 或等价延迟数据；
-- 受影响测试、真实 API 验证和阶段文档完成；
-- 不为单条失败添加固定答案、关键词路由或生产补丁。
-
-### 7.3 M5 必须学习
+### 7.3 M5 知识范围（不等于逐项考核完成记录）
 
 - Loader / Clean / Chunk / overlap；
 - token 与字符长度；
@@ -355,137 +291,71 @@ M5 验收：
 - vector dimension；
 - cosine / dot product / L2；
 - collection / index；
-- TopK / threshold / metadata filter；
+- TopK / metadata filter；
 - ANN / HNSW 基本原理；
-- Recall@K、MRR 和延迟；
-- 增量更新、删除和索引重建；
-- Context 去重、排序、token budget、拒答和 citation。
+- recall、latency、memory 权衡；
+- 增量更新、删除和模型变化后的索引重建；
+- Context 去重、排序、token budget 和 citation。
 
 ---
 
-## 8. M6：FastAPI 模型服务、Rerank、Hybrid 与 Benchmark
+## 8. M6：Advanced RAG 与 Benchmark
 
-M6 的目标是用同一冻结检索集验证 Advanced RAG 的真实收益，而不是实现所有 RAG 名词。
+M6 是下一开发入口，尚未实施。先确认目标、基线和可比口径，再逐项引入增量；不同时堆叠多个策略。
 
-### 8.1 Python FastAPI 模型服务
+### 8.1 入口与比较顺序
 
-建立独立 Python 推理服务，至少提供：
+1. 复用现有语料、评估脚本与历史结果，确认 rule / dense 结果粒度及来源/片段指标的可比性。
+2. 固定查询集、知识与索引版本、模型、过滤条件、TopK、上下文预算和耗时口径；只有旧结果不可比时才补跑基线。
+3. 先比较关键词与语义检索互补性，再按失败类型考虑融合、重排或查询改写；逐项判断收益与成本。
+4. 分开记录检索质量、最终回答证据支持和延迟，不把工具成功或引用 ID 合法当作回答完全正确。
 
-```text
-GET  /health
-POST /v1/embeddings
-POST /v1/rerank
-```
+### 8.2 计划比较的能力
 
-第一步接入 `bge-reranker-v2-m3`；随后才把 BGE-M3 dense / sparse 统一迁入该服务。Java 通过清晰的 HTTP 契约调用，Python 服务不承担 Agent 编排和业务状态。
-
-这一阶段证明模型加载、推理 API、Java/Python 对接、超时和失败处理；它本身不等于已经完成流式接口、长任务异步回调或任务队列。
-
-### 8.2 Rerank——必做实验，不保证默认启用
-
-实现：
-
-```text
-Dense TopN 候选
-→ bge-reranker-v2-m3
-→ TopK 上下文
-```
-
-比较启用前后的 Recall@5、MRR、P50/P95、候选数量和失败类别。Reranker 必须接入并评测，但最终是否默认启用由收益和延迟决定。
-
-### 8.3 Sparse / Hybrid——按失败证据实施
-
-当 dense 基线明确暴露错误码、类名、表名、配置项或专有缩写等精确匹配失败时，再实现：
-
-```text
-BGE-M3 dense + lexical sparse
-→ Qdrant named vectors
-→ prefetch
-→ RRF
-→ 可选 rerank
-```
-
-Spring AI 通用 `VectorStore` 继续承担 dense baseline；Qdrant hybrid 通过 `getNativeClient()` 下沉原生客户端实现。不得把 Qdrant 特有代码泄漏到所有业务层。
-
-M6 不为了 Hybrid 强制引入 Elasticsearch。
-
-### 8.4 Query Rewrite 优先级
-
-按实际价值依次考虑：
-
-1. 多轮对话指代消解与 query rewrite；
-2. Multi-Query 小实验；
-3. HyDE 只做理解或有限实验。
-
-一次只引入一种策略并运行同一冻结数据集。Parent-Child、Contextual Compression、Agentic RAG 不作为 M6 必做项。
-
-### 8.5 Benchmark 与停止线
-
-计划内比较：
+按上述顺序和实际需要比较：
 
 - rule / keyword baseline；
 - dense vector；
-- dense + rerank；
-- dense + sparse + RRF（有失败证据时）；
-- hybrid + rerank（有必要时）；
-- 选定的 query rewrite 策略；
-- 少量 Chunk / TopK 参数组合；
-- citation correctness、拒答和 context token budget。
+- BM25 / sparse；
+- hybrid / RRF；
+- reranker；
+- query rewrite / multi-query；
+- chunk size / overlap；
+- TopK / metadata filter；
+- citation correctness；
+- context token budget。
 
-阶段输出 `RAG-BENCHMARK.md`，至少报告 Recall@5、MRR、延迟、失败类型、参数版本和最终取舍。
+### 8.3 交付与范围控制
 
-M6 完成后停止继续堆 RAG 组件，优先进入 M7 可演示闭环。Elasticsearch、Langfuse、Neo4j 和 GraphRAG 均不得阻塞 M7。
+M6 可以使用 M4 框架进行有限、计划内的对比，但仍遵守“测量而非刷分”。阶段输出 `RAG-BENCHMARK.md`，记录配置、版本、指标、失败类型和成本，用数据解释最终检索策略。精确 token 预算、引用语义与工具证据一致性属于待比较/完善能力，不把 M5 的字符预算和 ID 审计描述为已经实现这些能力。
+
+HyDE、Parent-Child、Contextual Compression、Agentic RAG、Graph RAG 以理解和小实验为主，不要求全部进入默认链路。
 
 ---
 
 ## 9. M7～M11
 
-### M7：可演示产品闭环
+### M7：DeepSeek + AutoDL 多模型
 
-M7 把原异步、前端和基础部署工作压缩为一个 Demo MVP：
-
-- Task 表和状态机；
-- 独立线程池、幂等、timeout、有限重试和恢复；
-- SSE 推送 Agent / Tool / RAG 步骤；
-- 最小 Vue 页面，展示输入、状态、Tool Evidence、RAG 引用、最终回答、耗时和历史 Trace；
-- Spring Boot、Vue、MySQL、Qdrant 的 Demo Compose；
-- README、架构图、启动步骤和固定演示场景。
-
-暂不默认引入 MQ，不在 M7 追求复杂权限后台和完整视觉设计。
-
-### M8：DeepSeek + AutoDL 多模型
-
-同一 Java Agent、Tool、RAG 和接口支持多个 `modelId`。AutoDL 优先使用 vLLM 暴露 OpenAI-compatible API；实例关闭时允许自部署模型 `UNAVAILABLE`，不能拖垮 DeepSeek 主链。
+同一 Java Agent、Tool、RAG 和接口支持多个 `modelId`。AutoDL 优先使用 vLLM 暴露 OpenAI-compatible API；实例关闭时允许本地模型 `UNAVAILABLE`，不能拖垮 DeepSeek 主链。
 
 LoRA / QLoRA 是可选增强，只有小模型基线暴露明确领域差距时才考虑；不把训练 loss 当成项目成功标准。
 
+### M8：异步任务 + SSE
+
+Task 表、状态机、独立线程池、幂等、timeout、有限重试、恢复和 SSE。暂不默认引入 MQ。
+
 ### M9：Observability + MCP
 
-第一层保留并完善现有 `agent_run_log`、`agent_step_log` 和业务 Trace；第二层接入 Actuator / Micrometer、模型 / Tool / RAG 指标、token usage、Tracing、P50/P95 和 Spring AI Observability。
+Actuator / Micrometer、模型/Tool/RAG 指标、token usage、Tracing、P50/P95、Spring AI Observability、MCP 基本协议和一个小型集成。
 
-Langfuse 是 LLM Trace、Token、Prompt 和评测增强项，只能在 M7 可演示闭环后接入，不替代应用指标和现有业务审计，也不得成为 M5/M6 的阻塞项。
+### M10：Vue
 
-MCP 学习基本协议并完成一个小型、可解释集成，不扩展为多 Agent 平台。
+输入诊断、模型选择、任务状态、SSE、Tool Evidence、RAG 来源、最终回答和历史 Trace。
 
-### M10：检索扩展实验——选做
+### M11：部署与作品集
 
-项目已经可演示且时间充足时，可以使用 Elasticsearch 做有限 BM25 / IK 对照，重点观察中文分词、错误码、专有名词和聚合能力。不再重复实现一套完整 Elasticsearch dense Vector RAG。
-
-Neo4j / GraphRAG 当前只要求形成一篇 Wiki 笔记，说明实体、关系、多跳问题、适用条件、成本和为什么本项目暂不实现。只有出现稳定实体关系、大量跨文档多跳问题及专用评测集时，才重新评估实现。
-
-Kibana 不作为 LLM 可观测性默认方案；只有实际采用 Elasticsearch 日志或检索场景时才随之学习。
-
-### M11：部署与作品集收束
-
-完成 CI、健康检查、HTTPS、环境变量和密钥治理、部署验证、README、架构图、评测与 RAG 报告、演示脚本、简历描述和面试问答。
-
-### 9.1 时间盒
-
-按每周约 10 小时估算：
-
-- M5～M6：约 4 周，完成有指标的后端 RAG；
-- M7：再用约 2～4 周完成 SSE、最小 Vue 和 Demo Compose；
-- M8～M10：在可演示成品之后按求职价值和时间选择，不要求全部实现。
+后端、Vue、向量库和 MySQL Compose；CI；健康检查；HTTPS；公开 Demo；README；架构图；评测与 RAG 报告；简历和面试材料。
 
 ---
 
@@ -504,8 +374,6 @@ Kibana 不作为 LLM 可观测性默认方案；只有实际采用 Elasticsearch
 - Kubernetes；
 - 复杂权限/菜单后台；
 - 未经筛选导入整个私人 Wiki；
-- 在 M5/M6 同时引入 Elasticsearch、Langfuse、Neo4j 或 GraphRAG；
-- 在可演示闭环前持续堆叠 RAG 技术名词；
 - 为固定评测题硬编码回答或强制工具调用。
 
 ---
@@ -513,17 +381,22 @@ Kibana 不作为 LLM 可观测性默认方案；只有实际采用 Elasticsearch
 ## 11. 路线执行原则
 
 1. 每一步说明为什么做、解决什么、如何验收。
-2. 阶段内跑受影响测试，阶段封版再跑全量测试。
+2. 每次修改先说明验证所针对的风险；阶段内跑受影响测试，阶段封版再跑全量测试。纯文档修改不重跑测试；已有效的真实 API 证据直接沿用。
 3. 新技术先做最小链路，再迁移正式主链。
 4. 不为了面试名词一次实现所有 RAG 技术。
 5. 向量库必须实际接入，但只选择一个主实现。
 6. Evaluation 是测量工具，不是满分目标。
 7. 不以单条评测失败为理由改变整体 Agent 架构。
-8. 检索评测标注来源、章节和证据文本，不把 Chunk ID 当成跨策略不变的标准答案。
-9. Rerank 是必做对照实验，Hybrid 和 Query Rewrite 必须有失败证据或明确评测目标。
-10. M6 完成后优先形成 SSE、Vue、Compose 的可演示闭环。
-11. DeepSeek 与 AutoDL 共用同一业务链，避免维护两套 Agent。
-12. 源码和已通过验证优先于旧文档。
-13. 密钥、服务器地址、私人数据路径与 Git 隔离。
-14. 生产代码修改尽量一次给出完整文件和集中验证步骤，减少微型往返。
-15. 每个里程碑完成后更新 `CURRENT-STATUS.md`、测试、提交和标签。
+8. DeepSeek 与 AutoDL 共用同一业务链，避免维护两套 Agent。
+9. 源码和已通过验证优先于旧文档。
+10. 密钥、服务器地址、私人数据路径与 Git 隔离。
+11. 生产代码修改尽量一次给出完整文件和集中验证步骤，减少微型往返。
+12. 每个里程碑完成后更新 `CURRENT-STATUS.md`、测试结果、提交和标签；区分功能验收完成与 Git 封版完成，未确认的哈希或标签不得编造。
+13. 教学内容使用 Markdown 标题层级，便于 Typora 大纲导航；个人项目与模型理论学习分开推进。
+
+
+---
+
+## 12. 本次修订说明
+
+2026-10-20：更新 M5 验收状态与 M6 入口；更正旧编排、重复接口和规则检索直连的过时架构描述；补充预算与引用审计的能力边界；取消机械重复评测和未执行的扩题要求。M7～M11 的顺序与核心目标保留，不因单个回答质量问题调整整体路线。

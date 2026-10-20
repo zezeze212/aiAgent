@@ -2,15 +2,17 @@
 
 > 文档职责：本文件是当前代码事实、验证结果、已知限制和下一阶段入口的唯一权威来源。  
 > 长期定位、架构边界和 M0～M11 路线见 [PROJECT-OUTLINE.md](PROJECT-OUTLINE.md)。  
-> 状态核对日期：2026-08-30（Asia/Shanghai）。
+> 状态核对日期：2026-10-20（Asia/Shanghai）。
 
 ## 1. 一句话状态
 
 `ai-agent-demo` 当前是一个以 **Spring AI 为正式主链、同步执行的 Java 后端故障诊断 Agent**。
 
-M0、M1、M2、M3、M4 已完成并收束。当前唯一入口是：
+M0～M4 已完成并收束，M5 功能与工程验收已完成。2026-10-20 本地全量测试 112 项通过，无失败、错误或跳过；M5 封版提交与标签尚未提供，不能视为已经创建。
 
-> **M5-1：Qdrant Dense Vector RAG 端到端竖切 + 10～15 条检索种子集。**
+> **下一开发入口：M6：Advanced RAG 与 Benchmark。先确认比较目标和已有基线，再实施有明确收益假设的增量。**
+
+本文依据已提供的代码、后续修改记录、用户回传的测试汇总与真实 API Trace 更新；不是对用户本地最新工作区的重新扫描。历史评测分数不代表当前 M5 代码已重新取得相同成绩。
 
 M4 Evaluation 已结束。后续不得为了评测满分继续修改 Prompt、数据集或业务逻辑；现有失败作为基线事实保留。
 
@@ -25,13 +27,13 @@ M4 Evaluation 已结束。后续不得为了评测满分继续修改 Prompt、�
 | M2 | 已完成 | Tool Contract / Governance、多类型 Tool、Trace 安全治理 |
 | M3 | 已完成 | Spring AI 主链、原生 Tool Calling、正式入口切换 |
 | M4 | 已完成 | Python Evaluation Harness、14条校准集、50条回归集、版本报告 |
-| M5 | 当前唯一入口 | Qdrant Dense Vector RAG 竖切、引用、检索种子集和基线数字 |
-| M6 | 后续计划 | FastAPI、Rerank、按证据实施 Hybrid、Query Rewrite、Benchmark |
-| M7 | 后续计划 | Async Task、SSE、最小 Vue、Demo Compose 和可演示闭环 |
-| M8 | 后续计划 | DeepSeek + AutoDL 多模型、可选微调 |
-| M9 | 后续计划 | Micrometer / Spring AI Observability、可选 Langfuse、MCP |
-| M10 | 选做 | Elasticsearch BM25/IK 对照；Neo4j / GraphRAG 边界研究 |
-| M11 | 后续计划 | CI、部署加固、README、报告和作品集收束 |
+| M5 | 功能与验收已完成；Git 封版待确认 | Manifest、分块、增量索引、Dense Vector RAG、上下文预算与引用审计 |
+| M6 | 下一开发入口，尚未实施 | Hybrid、Rerank、Query Transform、RAG Benchmark |
+| M7 | 后续计划 | DeepSeek + AutoDL 多模型、可选微调 |
+| M8 | 后续计划 | 异步任务 + SSE |
+| M9 | 后续计划 | Observability + MCP |
+| M10 | 后续计划 | Vue 诊断控制台 |
+| M11 | 后续计划 | Compose、CI、部署和作品集 |
 
 ---
 
@@ -104,7 +106,16 @@ git log -5 --oneline --decorate
 git status --short
 ```
 
-### 4.3 明确作废的未采纳设计
+### 4.3 最近确认的 Git 信息
+
+- 分支：`feature/m3-spring-ai-chat`。
+- 最近提供的提交：`ee27a37 feat(rag): 完成检索范围过滤与请求级知识上下文预算`。
+- 该提交是已知历史节点，不等同于本次 112 项测试所对应的最新 HEAD。
+- 当时 `.env.example` 仍有修改；本次未提供 `git status`，不推定它已经提交或撤销。
+- M5 建议标签：`v0.8.0-vector-rag`；尚未确认创建。
+- 最终提交哈希、工作区状态及标签在用户本地提交后补充，不能编造。
+
+### 4.4 明确作废的未采纳设计
 
 在 M4 收尾过程中曾提出一组“确定性强制工具路由”修改，包括新增：
 
@@ -115,6 +126,8 @@ SpringAiRequiredToolCall.java
 以及改造 Service 在模型前强制执行 Tool。该方案是为了消除个别评测失败而提出，已经明确作废，不属于当前代码基线，也不得由新对话继续应用。
 
 如果本地从未覆盖这些文件，不需要任何操作。
+
+此前提出的 M5-4A 扩充 30 条检索评测及配套脚本修改也已取消，用户没有执行。它不是 M5 验收要求，接手时不得恢复为待办。
 
 ---
 
@@ -130,8 +143,11 @@ SpringAiRequiredToolCall.java
 | 数据库迁移 | Flyway |
 | 本地数据库 | Docker Compose、MySQL 8.4.x |
 | 测试 | JUnit 5、Mockito、Testcontainers |
-| RAG | `SimpleRagRetriever` 规则检索 |
-| 向量库 | 尚未接入 |
+| RAG | `KnowledgeRetriever` 统一入口，rule / vector 可切换 |
+| 规则基线 | `SimpleRagRetriever`，经适配器接入 |
+| Embedding | Ollama `bge-m3`，1024 维 |
+| 向量库 | Qdrant 1.19，受管集合 `ai_agent_knowledge_managed_v1` |
+| 本地向量服务 | Qdrant REST 6333 / gRPC 6334；Ollama 11434 |
 | 构建 | Maven Wrapper |
 | Web 端口 | 8088 |
 | 本地 MySQL | `127.0.0.1:3307` |
@@ -147,63 +163,28 @@ SpringAiRequiredToolCall.java
 - `GET /agent/runs/stats`：运行统计；
 - `GET /agent/runs/{traceId}`：查询 Run 和完整 Steps。
 
-迁移验证接口：
+RAG 调试接口：
 
-- `POST /spring-ai/schema-chat`：与正式入口共用 `SpringAiToolChatService`，暂时保留，不作为第二套主链。
+- `GET /rag/search`：检索知识，支持 query、topK、similarityThreshold、source；用于观察命中内容，不执行 Agent 对话。
 
-旧 `/ai/*` 接口可能仍存在，但不再是项目主线。
+用户已确认清理旧 `/ai/*`、`/spring-ai/*` 重复问答入口和手写编排。正式问答统一使用 `/agent/ask`。旧编排可通过 Git 历史复习；不要重新引入第二套主链。`SimpleRagRetriever` 属于保留的规则基线，不等于旧 Agent 编排。
 
 ---
 
 ## 7. 当前正式链路
 
-```text
-用户请求
-  ↓
-SpringAiToolChatService / traceId
-  ↓
-SpringAiRequestBoundaryPolicy
-  ↓
-SpringAiToolAvailabilityPolicy
-  ↓
-SpringAiToolRunContext
-  ↓
-SpringAiKnowledgeSupport
-  ↓
-PRE_DECISION SimpleRagRetriever
-  ↓
-Spring AI ChatClient / DeepSeek
-  ↓
-Spring AI Tool Calling Loop
-  ↓
-SpringAiDiagnosticTools
-  ↓
-ToolRegistry
-  ↓
-ToolAccessPolicy / ToolArgumentValidator / ToolExecutionRunner
-  ↓
-具体 Tool / TOOL_EXECUTION Trace
-  ↓
-POST_TOOL RAG（按需、去重）
-  ↓
-Spring AI 基于证据生成最终回答
-  ↓
-TraceContentSanitizer / AgentTraceSanitizer
-  ↓
-AgentLogService 短事务
-  ↓
-agent_run_log + agent_step_log
-  ↓
-同步 HTTP 返回
-```
+1. `/agent/ask` 校验输入，`SpringAiToolChatService` 创建 traceId 和请求级 `SpringAiToolRunContext`。
+2. `SpringAiKnowledgeSupport` 执行 PRE_DECISION 检索：通过 `KnowledgeRetriever` 选择规则或向量实现；请求上下文完成去重、片段数量和字符预算控制。
+3. `SpringAiRequestBoundaryPolicy` 判断是否直接澄清；`SpringAiToolAvailabilityPolicy` 根据原始用户输入决定本次可提供的工具。
+4. 无确定性澄清时，Spring AI `ChatClient` 调用 DeepSeek，模型自主产生结构化 Tool Call。
+5. `SpringAiDiagnosticTools` 复用请求上下文与 `ToolRegistry`，经过权限、参数、超时、重复调用等治理后执行具体工具，记录 `TOOL_EXECUTION`。
+6. 工具后按需补充知识：前置阶段已选入知识时跳过；否则执行 POST_TOOL 检索与同一请求累计预算选择。工具事实与知识内容分别保留。
+7. 模型根据工具证据和知识生成回答；成功且非确定性澄清的回答执行 `KNOWLEDGE_CITATION_CHECK`，仅审计引用 ID，不重写答案。
+8. 经 Trace 脱敏与 `AgentLogService` 短事务持久化 Run / Steps，返回同步 HTTP 响应。
 
-输入证据不足且满足明确边界条件时，可以通过 `SpringAiRequestBoundaryPolicy` 返回确定性澄清，并记录：
+确定性澄清记录 `AGENT_CLARIFICATION`；它不是在模型前强制执行所有工具。表名证据来自原始用户输入，不从知识库示例补造。
 
-```text
-AGENT_CLARIFICATION
-```
-
-这不等于对所有 Tool 请求进行硬编码路由。
+注意：`SPRING_AI_CHAT` 的计时范围包含前置知识准备，不能将其与检索耗时简单相加计算总耗时。
 
 ---
 
@@ -372,134 +353,136 @@ M4 的验收结论：
 
 ---
 
-## 10. 当前测试状态
+## 10. M5 已完成功能与工程验收
 
-M4 收口期间本地 Maven 最新可信结果：
+### 10.1 索引与检索
 
-```text
-Tests run: 103
-Failures: 0
-Errors: 0
-Skipped: 0
-BUILD SUCCESS
+- 已接入公开知识 manifest、Markdown 清洗、按章节分块与窗口切分、来源及版本/哈希元数据。
+- 已接入 Ollama `bge-m3` 与 Qdrant，完成受管索引的新增、更新、删除、幂等同步及状态维护。
+- 最近已知知识基线为 5 篇 SQL 故障文档、20 个片段；最新数量以本地 manifest 和索引结果为准。
+- 当前受管集合为 `ai_agent_knowledge_managed_v1`，不是历史实验集合。
+- `/rag/search` 支持 TopK、相似度阈值、来源精确过滤；category / visibility 基础过滤在检索端应用。
+- 已验证 TopK、阈值、指定来源和不存在来源返回空结果。基础过滤有单测，但不能据此宣称已验证多租户权限隔离。
+
+### 10.2 正式主链与上下文
+
+- `KnowledgeRetriever` 统一规则与向量结果，保留 chunkId、source、title、section、score、content。
+- `agent.rag.mode` 选择 rule / vector；vector 模式同时要求 `agent.rag.vector.enabled=true` 与服务依赖可用。
+- `agent.mode=rule` 不等于配置了 `agent.rag.mode=rule`；独立上下文测试须显式配置所需属性与依赖。
+- 请求级知识预算默认最多 5 个片段、每片段 2000 字符、累计正文 6000 字符；跨工具回调累计计算。
+- 超长或超过剩余预算的片段整体跳过，继续考虑后续可容纳片段；只对实际选入的片段登记去重。
+- 已区分检索失败、没有结果和候选被预算排除，避免将连接失败解释成知识库不存在相关资料。
+- 已增加无可用知识时的回答约束；工具事实不因没有附加知识而丢失。
+- 引用 ID 审计状态为 `VALID_IDS` / `INVALID_IDS` / `NO_CITATIONS`，不自动修改回答。
+- 已修复“orders 的实际表结构”等明确表名表达未被识别的问题，并增加相应测试；不是为某张表硬编码路由。
+
+### 10.3 真实 API 验证
+
+| 场景 | 已观察结果 | 结论边界 |
+|---|---|---|
+| duplicate-entry 通用问题 | TopK、阈值、来源过滤和空结果符合预期 | 单次耗时差异不能视作稳定性能提升 |
+| 请求级预算 | 候选 5 个、选入 2 个，剩余按预算排除 | 验证预算生效，不等于最佳检索参数 |
+| 正常引用 `29a3ef1d` | 知识被选入，引用 ID 合法 | 不证明所有回答结论均有语义支持 |
+| 空上下文 `fd1f5964` | 候选因片段预算被排除，回答未假装取得数据库事实 | 覆盖预算排除，不代表所有无关问题场景 |
+| 工具 + RAG `eeed4174` | `getTableSchema(agent_run_log)` 成功；14 个字段名与类型一致；选入 5 个片段、1051 字符；3 个引用 ID 合法 | 补充解释仍存在错误，见第 11 节 |
+
+`eeed4174` 中工具耗时 26 ms，Agent 耗时 5737 ms；仅作为本次运行记录，不用单样本推导性能基线。前置知识已准备，因此工具后跳过补充检索符合当前策略。
+
+### 10.4 全量测试与验收结论
+
+用户在本地执行阶段全量测试：
+
+```powershell
+.\mvnw.cmd clean test
 ```
 
-测试总数不是固定验收条件，以最新 Surefire 汇总为准；核心要求是 Failures 和 Errors 均为 0。
+回传结果：
+
+```text
+Tests run: 112, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+Total time: 02:14 min
+Finished at: 2026-10-20T07:53:58+08:00
+```
+
+项目已有数据库 Testcontainers 集成测试随测试阶段执行。本次依据用户提供的全量汇总确认验收，不编造每个测试类的最新数量。此前 4 / 17 / 23 项为不同阶段的定向测试结果，103 项为 M4 历史结果，均不再作为当前全量数。
+
+**M5 功能与工程验收完成，保留已知限制；文档已更新，最终 Git 提交与标签待确认。** 本次不重跑 M4 模型回归、不扩充 30 条检索集、不为满分调整 Prompt。后续仅有文档变化时无需再次运行上述测试。
+
+### 10.5 历史教学编号对应
+
+此前 M5-3A～M5-3D 涉及统一检索、范围过滤、请求级预算、空知识处理与引用审计；在当前权威总纲中归入 **M5-4：在线检索与引用**。保留历史提交命名，不回退或重复实施。
 
 ---
 
 ## 11. 当前已知限制
 
-### Spring AI / 模型
+### 11.1 Spring AI / 模型与证据一致性
 
-- 当前只有 DeepSeek 一个 Provider；
-- 模型 Tool Calling 存在选择差异和结构化调用不稳定；
-- 这些限制已经被 M4 记录，当前不修；
-- 尚未接入 token usage 和完整 Observability；
-- `/spring-ai/schema-chat` 尚未移除。
+- 当前生成模型仅接入 DeepSeek；历史 M4 记录了工具选择差异和结构化调用不稳定，不根据少数题硬编码路由。
+- 工具成功不代表回答完全正确。`eeed4174` 的字段表格正确，但模型将已有默认值 `CURRENT_TIMESTAMP(3)` 的 `created_time` 归为“无默认值”；工具未返回自增属性，也不足以支持“省略 id 一定报错”的推断。
+- 上述问题属于额外解释违背或超出工具证据，应作为后续证据一致性评估样例保留，不将本次请求记为回答完全正确。
+- 尚未接入 token usage 和完整 Observability。
 
-### RAG
+### 11.2 RAG
 
-- 当前只有规则 `SimpleRagRetriever`；
-- 没有 Embedding；
-- 没有 Vector Store；
-- 没有 Hybrid / Reranker；
-- 没有完整知识 manifest、chunk、version、增量索引和 citation；
-- 没有 Recall@K / MRR / nDCG。
+- 字符预算采用正文 `String.length()`，不包含全部提示词、包装元数据和工具结果，不是精确 token 预算。
+- 引用审计只核对 ID 是否属于本次选入集合，不验证语义支持、引用是否充分，也不是完整引用格式校验或输出拦截器。
+- 默认相似度阈值尚未经过系统校准；不能从单题表现推导全局最优阈值。
+- category / visibility / source 过滤不是完整的用户权限或租户授权体系。
+- 空上下文实测覆盖预算排除；不能扩展为所有无关问题与所有故障情形均已验证。
+- 受管索引已实现恢复相关逻辑，状态恢复已检查；未完成所有中断点的故障注入验证，不声称全面容灾验收。
+- 尚未完成 BM25、Hybrid / RRF、Reranker、Query Rewrite 的受控比较；现有检索评估工具和历史记录可复用，不伪造当前版本的 Recall / MRR 成绩。
 
-### 多模型
+### 11.3 多模型
 
-- 没有 `modelId`；
-- 没有 Model Registry / Router；
-- 没有 AutoDL 在线模型；
+- 尚无 `modelId`、Model Registry / Router 和 AutoDL 在线模型。
 - 当前项目没有接入已有 LoRA / QLoRA 产物。
 
-### Async / 产品
+### 11.4 Async / 产品
 
-- `/agent/ask` 仍为同步 HTTP；
-- 没有 task table、状态机、取消、恢复和 SSE；
-- 没有 Vue；
-- 没有 MCP；
-- 没有全栈 Compose、CI 和公开 Demo。
+- `/agent/ask` 仍为同步 HTTP；尚无任务状态机、取消、恢复和 SSE。
+- 尚无 Vue、MCP、全栈 Compose、CI 和公开 Demo；不影响本次 M5 范围内验收。
 
 ---
 
-## 12. M5 当前唯一入口
+## 12. 下一开发入口：M6
 
-### 12.1 M5-0 已完成决策
+先完成本地 M5 提交与标签记录，然后进入 **Advanced RAG 与 Benchmark**。M6 尚未实施。
 
-```text
-Java / Agent：Spring AI 1.1.8
-Chat / Tool Calling：DeepSeek OpenAI-compatible API
-Dense Embedding baseline：Ollama + BGE-M3
-主向量库：Qdrant
-规则基线：SimpleRagRetriever（保留、可切换）
-后续模型服务：Python FastAPI
-Reranker：bge-reranker-v2-m3（M6 必做实验）
-Hybrid：BGE-M3 dense + sparse + Qdrant RRF（按失败证据实施）
-```
+### 12.1 第一单元建议：比较目标与基线设计
 
-边界：
+1. 阅读最新代码与现有检索评估脚本，确认 rule / dense 的调用入口、结果粒度和已有数据集能否公平比较。
+2. 明确要解决的失败类型，并固定知识版本、查询集、过滤范围、TopK、预算及耗时口径。
+3. 区分检索指标（来源/片段命中、排序）和回答指标（证据支持、引用正确性），不混成一个总分。
+4. 优先复用已有基线证据；只有代码、语料或比较口径变化使旧结果不可比时才补跑。
+5. 之后按 BM25 / Hybrid、Rerank、Query Transform 等增量逐项比较；没有收益的方案不要求进入默认链路。
 
-- Ollama 只承担 M5 dense baseline，不承担 rerank；
-- Qdrant 是唯一主向量库；
-- Spring AI 通用 `VectorStore` 用于 dense，M6 Hybrid 再通过 `getNativeClient()` 下沉 Qdrant 原生客户端；
-- Elasticsearch 不作为 M5/M6 主库，只在 Demo 完成后选做 BM25/IK 对照；
-- Langfuse 不进入 M5/M6 关键路径；
-- Neo4j / GraphRAG 当前不实现。
+交付 `RAG-BENCHMARK.md`。当前不预设必须新增多少题，也不要求每次修改都重跑整个模型评测集。
 
-### 12.2 下一步唯一入口
+### 12.2 接手时读取
 
-下一步不是重新讨论选型，也不是返回 M4 Agent 评测，而是：
+`CURRENT-STATUS.md`、`PROJECT-OUTLINE.md`、最新源码、`pom.xml`、Compose、检索配置、`KnowledgeRetriever` 及其实现、`VectorKnowledgeService`、`SpringAiKnowledgeSupport`、`SpringAiToolRunContext`、引用审计、知识 manifest 和现有评估脚本。
 
-> **M5-1：公开脱敏 Wiki Markdown → 最小 manifest / Chunk → Ollama BGE-M3 dense → Qdrant → TopK → Spring AI → 带引用回答，同时建立 10～15 条冻结检索种子集。**
-
-新对话首先读取：
-
-1. `CURRENT-STATUS.md`；
-2. `PROJECT-OUTLINE.md`；
-3. 当前项目源码；
-4. `pom.xml`；
-5. `compose.yaml` 或当前 Compose 文件；
-6. `SimpleRagRetriever`；
-7. `SpringAiKnowledgeSupport`；
-8. `SpringAiToolChatService`；
-9. `src/main/resources/docs/knowledge/`；
-10. 相关 RAG 测试。
-
-如果需要引入 `personal-engineering-wiki`，必须由用户另行提供或给出本地路径；只读取 manifest allowlist 中公开、脱敏的文档，不扫描或导入整个 Wiki。
-
-检索种子集与 M4 Agent 评测集分开：
-
-- 初始只做 10～15 条；
-- 标注 expected source / section / evidence text，不写死 Chunk ID；
-- 第一版记录 Recall@5、MRR 和延迟；
-- 链路稳定后再扩展到约 30～50 条；
-- 不因单条失败增加固定关键词、固定回答或生产路由。
+9 月 6 日和 10 月 10 日压缩包均是历史快照，不能替代 10 月 20 日后的本地最新代码。
 
 ---
 
 ## 13. 新对话接手规则
 
-- M0～M4 已结束，不重新设计；
-- M5-0 选型已完成，当前从 M5-1 开始；
-- 不应用 `SpringAiRequiredToolCall` 强制路由方案；
-- 不继续修 `sql-duplicate-key-030` 和 `business-audit-table-039`；
-- 不修改 Flyway V1 / V2；
-- `/agent/ask` 保持 Spring AI 正式主链；
-- 旧手写链路冻结保留，不同步扩展；
-- 第一版直接使用 Qdrant，不实现 `SimpleVectorStore` 过渡版；
-- 不重新比较 Qdrant、pgvector、Milvus 和 Elasticsearch 作为 M5 主库；
-- 不在 M5 提前接 FastAPI、Reranker、Hybrid、Elasticsearch、Langfuse、Neo4j 或 GraphRAG；
-- M6 的 Reranker 是必做对照实验，但是否默认启用由指标和延迟决定；
-- M6 完成后优先进入 M7 SSE、最小 Vue 和 Compose，不继续无限扩 RAG；
-- 先解释原理和设计，再集中修改完整文件，并给出修改内容的解释；
-- 避免“改一两行—回传—再改一两行”的微型往返；
-- API 调试优先 Postman，脚本和构建可以使用 PowerShell；
-- 不提供压缩包式代码交付，生产代码大改优先给完整文件；
-- 不上传 `.env`、API Key、数据库真实密码或私人数据；
-- 不混入工作项目；
-- 未核对 Spring AI 1.1.8 兼容性前，不直接套用其他版本 API。
+- M0～M5 功能与验收已完成；只补未确认的 Git 封版信息，下一开发入口为 M6。
+- 不恢复已取消的 M5-4A，也不恢复 `SpringAiRequiredToolCall` 强制路由方案。
+- 不为 M4 少数失败题硬编码工具调用或回答。
+- 保留 `/agent/ask` 的 Spring AI 正式主链；旧编排和重复问答入口已清理，规则检索基线继续保留。
+- 不修改既有 Flyway V1 / V2；如有数据库变更，新增 migration。
+- 主向量库继续使用 Qdrant，不重复选型或同时引入多个实现。
+- 每次先说明验证要解决的具体风险；单元内按影响范围测试，阶段封版才全量测试，文档更新无需重新跑测试。
+- 先解释原理和设计，生产代码修改集中给完整文件或完整方法，避免微型往返。
+- 教学材料使用真正的 Markdown 标题层级，方便 Typora 大纲展示。
+- API 调试优先 Postman；构建和脚本兼容 PowerShell。
+- 不上传密钥、真实密码或私人数据；项目与工作业务完全隔离。
+- 新增 Spring AI API 或依赖前核对 1.1.8 兼容性。
+- 个人项目与模型理论学习分线推进，不因已学习 GraphRAG 等概念而立即扩展项目范围。
 
 ---
 
@@ -517,3 +500,8 @@ Hybrid：BGE-M3 dense + sparse + Qdrant RRF（按失败证据实施）
 - 已完成、进行中和后续；
 - 已知限制；
 - 下一阶段唯一入口。
+
+
+## 15. 本次更新记录
+
+2026-10-20：补齐 M5 索引与正式主链进展；记录全量测试 112 项通过；更正旧入口、旧编排和“尚无向量库”等过时描述；保留 M4 历史基线与 M5 已知质量限制；将下一开发入口切换到 M6；最终 Git 提交与标签待补。
