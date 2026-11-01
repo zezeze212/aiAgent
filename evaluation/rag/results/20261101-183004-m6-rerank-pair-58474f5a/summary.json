@@ -1,0 +1,108 @@
+{
+  "status": "COMPLETED",
+  "comparisonReady": true,
+  "plannedPairs": 15,
+  "succeededPairs": 15,
+  "errorPairs": 0,
+  "notRunPairs": 0,
+  "errorCaseIds": [],
+  "metrics": {
+    "hybrid": {
+      "sourceHitAt1": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "sourceHitWithinRawK": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceAvailable": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceHitAtK": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceReciprocalRankAtK": {
+        "sum": 12.833333333333334,
+        "plannedDenominator": 15,
+        "allPlanned": 0.8555555555555556,
+        "successfulOnly": 0.8555555555555556
+      }
+    },
+    "rerank": {
+      "sourceHitAt1": {
+        "sum": 14,
+        "plannedDenominator": 15,
+        "allPlanned": 0.9333333333333333,
+        "successfulOnly": 0.9333333333333333
+      },
+      "sourceHitWithinRawK": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceAvailable": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceHitAtK": {
+        "sum": 15,
+        "plannedDenominator": 15,
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceReciprocalRankAtK": {
+        "sum": 12.666666666666668,
+        "plannedDenominator": 15,
+        "allPlanned": 0.8444444444444446,
+        "successfulOnly": 0.8444444444444446
+      }
+    }
+  },
+  "pairedMrrChanges": {
+    "improved": 1,
+    "worsened": 2,
+    "unchanged": 12
+  },
+  "latencySuccessMs": {
+    "hybridStages": {
+      "count": 15,
+      "mean": 140.57,
+      "p50": 120.766,
+      "p95": 223.277
+    },
+    "rerankIncrement": {
+      "count": 15,
+      "mean": 145.238,
+      "p50": 141.079,
+      "p95": 185.022
+    },
+    "pairHttp": {
+      "count": 15,
+      "mean": 304.353,
+      "p50": 289.64,
+      "p95": 384.318
+    }
+  },
+  "latencyErrorMs": {
+    "count": 0,
+    "mean": null,
+    "p50": null,
+    "p95": null
+  },
+  "runId": "20261101-183004-m6-rerank-pair-58474f5a",
+  "evaluatorVersion": "rag-rerank-pair-evaluator-v1"
+}
