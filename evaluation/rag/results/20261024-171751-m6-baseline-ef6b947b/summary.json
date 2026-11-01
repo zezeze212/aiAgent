@@ -1,0 +1,124 @@
+{
+  "runId": "20261024-171751-m6-baseline-ef6b947b",
+  "evaluatorVersion": "rag-baseline-evaluator-v1",
+  "status": "COMPLETED",
+  "comparisonReady": true,
+  "strategies": {
+    "rule": {
+      "planned": 15,
+      "attempted": 15,
+      "succeeded": 15,
+      "errors": 0,
+      "notRun": 0,
+      "metrics": {
+        "sourceHitAt1": {
+          "sum": 10,
+          "plannedDenominator": 15,
+          "allPlanned": 0.6666666666666666,
+          "successfulOnly": 0.6666666666666666
+        },
+        "sourceHitWithinRawK": {
+          "sum": 10,
+          "plannedDenominator": 15,
+          "allPlanned": 0.6666666666666666,
+          "successfulOnly": 0.6666666666666666
+        },
+        "evidenceAvailable": {
+          "sum": 10,
+          "plannedDenominator": 15,
+          "allPlanned": 0.6666666666666666,
+          "successfulOnly": 0.6666666666666666
+        },
+        "evidenceHitAtK": null,
+        "evidenceReciprocalRankAtK": null
+      },
+      "serverLatencySuccessMs": {
+        "count": 15,
+        "mean": 0.138,
+        "p50": 0.162,
+        "p95": 0.224
+      },
+      "clientLatencySuccessMs": {
+        "count": 15,
+        "mean": 17.118,
+        "p50": 18.134,
+        "p95": 30.33
+      },
+      "clientLatencyErrorMs": {
+        "count": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null
+      },
+      "meanReturnedCharsUtf16": 479.26666666666665,
+      "errorCaseIds": [],
+      "evidenceMissCaseIds": [
+        "table-not-exist-error-004",
+        "table-not-exist-order-006",
+        "duplicate-logical-delete-009",
+        "data-too-long-order-012",
+        "foreign-key-parent-missing-014"
+      ]
+    },
+    "dense": {
+      "planned": 15,
+      "attempted": 15,
+      "succeeded": 15,
+      "errors": 0,
+      "notRun": 0,
+      "metrics": {
+        "sourceHitAt1": {
+          "sum": 14,
+          "plannedDenominator": 15,
+          "allPlanned": 0.9333333333333333,
+          "successfulOnly": 0.9333333333333333
+        },
+        "sourceHitWithinRawK": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceAvailable": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceHitAtK": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceReciprocalRankAtK": {
+          "sum": 12.416666666666668,
+          "plannedDenominator": 15,
+          "allPlanned": 0.8277777777777778,
+          "successfulOnly": 0.8277777777777778
+        }
+      },
+      "serverLatencySuccessMs": {
+        "count": 15,
+        "mean": 124.042,
+        "p50": 117.826,
+        "p95": 203.318
+      },
+      "clientLatencySuccessMs": {
+        "count": 15,
+        "mean": 143.693,
+        "p50": 138.226,
+        "p95": 235.427
+      },
+      "clientLatencyErrorMs": {
+        "count": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null
+      },
+      "meanReturnedCharsUtf16": 990.2666666666667,
+      "errorCaseIds": [],
+      "evidenceMissCaseIds": []
+    }
+  }
+}

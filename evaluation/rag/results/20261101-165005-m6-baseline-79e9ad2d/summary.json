@@ -1,0 +1,68 @@
+{
+  "runId": "20261101-165005-m6-baseline-79e9ad2d",
+  "evaluatorVersion": "rag-baseline-evaluator-v3",
+  "status": "COMPLETED",
+  "comparisonReady": true,
+  "strategies": {
+    "hybrid": {
+      "planned": 15,
+      "attempted": 15,
+      "succeeded": 15,
+      "errors": 0,
+      "notRun": 0,
+      "metrics": {
+        "sourceHitAt1": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "sourceHitWithinRawK": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceAvailable": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceHitAtK": {
+          "sum": 15,
+          "plannedDenominator": 15,
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceReciprocalRankAtK": {
+          "sum": 12.833333333333334,
+          "plannedDenominator": 15,
+          "allPlanned": 0.8555555555555556,
+          "successfulOnly": 0.8555555555555556
+        }
+      },
+      "serverLatencySuccessMs": {
+        "count": 15,
+        "mean": 137.48,
+        "p50": 127.204,
+        "p95": 230.944
+      },
+      "clientLatencySuccessMs": {
+        "count": 15,
+        "mean": 156.941,
+        "p50": 140.364,
+        "p95": 260.878
+      },
+      "clientLatencyErrorMs": {
+        "count": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null
+      },
+      "meanReturnedCharsUtf16": 983.2,
+      "errorCaseIds": [],
+      "evidenceMissCaseIds": []
+    }
+  }
+}

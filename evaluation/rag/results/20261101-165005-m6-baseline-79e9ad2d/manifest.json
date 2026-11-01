@@ -1,0 +1,560 @@
+{
+  "runId": "20261101-165005-m6-baseline-79e9ad2d",
+  "createdAt": "2026-11-01T16:50:05.178358+08:00",
+  "evaluatorVersion": "rag-baseline-evaluator-v3",
+  "datasetVersion": "retrieval-seed-v1",
+  "datasetSha256": "13b92d581b0eca140de74f0fdc1400fe5bd8032ab0ed8f694826ae6138086a2d",
+  "baseUrl": "http://localhost:8088",
+  "endpoint": "/rag/benchmark/search",
+  "topK": 5,
+  "plannedCasesPerStrategy": 15,
+  "requestedStrategies": [
+    "hybrid"
+  ],
+  "strategyOrder": "alternating per case",
+  "expectedCollection": "ai_agent_knowledge_managed_v1",
+  "runnerWorkspace": {
+    "gitHead": "f2db3a8aa6dccfefe28873c5e7ebc8db8155de3f",
+    "gitStatus": "A  docs/M6-0-BASELINE-GUIDE.md\nAM evaluation/rag/scripts/run_baseline_eval.py\nAM evaluation/rag/tests/test_baseline_eval.py\n M pom.xml\nAM src/main/java/com/example/agent/controller/RagBenchmarkController.java\nAM src/main/java/com/example/agent/dto/RagBenchmarkResponse.java\nAM src/main/java/com/example/agent/rag/Bm25KnowledgeIndex.java\n M src/main/java/com/example/agent/rag/KnowledgeChunk.java\nAM src/main/java/com/example/agent/rag/RagBenchmarkService.java\nAM src/main/java/com/example/agent/rag/RrfKnowledgeFusion.java\n M src/main/java/com/example/agent/rag/SimpleRagRetriever.java\n M src/main/java/com/example/agent/rag/vector/VectorKnowledgeService.java\n M src/main/resources/application.yml\nAM src/test/java/com/example/agent/controller/RagBenchmarkControllerTest.java\nAM src/test/java/com/example/agent/rag/Bm25KnowledgeIndexTest.java\nAM src/test/java/com/example/agent/rag/RagBenchmarkServiceTest.java\nAM src/test/java/com/example/agent/rag/RrfKnowledgeFusionTest.java\n?? evaluation/rag/results/20261024-171751-m6-baseline-ef6b947b/\n?? evaluation/rag/results/20261026-193256-m6-baseline-da5b49b6/\n?? evaluation/rag/scripts/__pycache__/\n?? evaluation/rag/tests/__pycache__/",
+    "fileSha256": {
+      "evaluation/rag/scripts/run_baseline_eval.py": "e491c24f8fa565fd78437c70b3c7a579b149f209a1963b7c75bd46e69ba3451d",
+      "evaluation/rag/scripts/run_retrieval_eval.py": "92ae312fe1e09a9c68165cfbee147f0121897576a3e11d160db5be86040dde5b",
+      "pom.xml": "8129ae6d5fc3b012d0e82c5ee31461cdac06b2476e78e473a94450c4ebc13fe9",
+      "src/main/java/com/example/agent/AiAgentDemoApplication.java": "5df1de1365aab8d2c1a170c57e4f7ef4c8e6c98d50b28bb517dca91974c08f10",
+      "src/main/java/com/example/agent/common/Result.java": "81bd628b202daf944ab04a2a0c8e86f1c7cc87f3bdf218a25476db3ea961d21f",
+      "src/main/java/com/example/agent/config/AgentProperties.java": "c0c091373ef663bcfbfd91d39159de9bc4403707badcdc101377d93a56071f31",
+      "src/main/java/com/example/agent/config/KnowledgeRetrieverConfiguration.java": "208f1311f1c0e6aa0a2917fe0b08bb4ed1a9c08118bb32eb85461d433acb26fb",
+      "src/main/java/com/example/agent/config/ToolExecutionConfig.java": "38e8ccd17bb380222692ba3e81981f855665517370a73927d0bfc151dacab682",
+      "src/main/java/com/example/agent/controller/AgentController.java": "2d399bb1358f00613f359b36431b64f8a309d5afb07010dd04df13e4aa31a9a3",
+      "src/main/java/com/example/agent/controller/RagBenchmarkController.java": "28d9fc19b79e1eeca83459b0504a4197adf649be0fe063919c58c450b53a0f4f",
+      "src/main/java/com/example/agent/controller/VectorKnowledgeController.java": "114454ed4e40bfd257590ba8e0f8a15661eb79f4a4c7c4f75df34a8093acdd5c",
+      "src/main/java/com/example/agent/dto/AgentAskRequest.java": "1467fe4e718f5c18867ef8e4e5ca5628a45acefd4abc86f27e6dd0ca1a47fb02",
+      "src/main/java/com/example/agent/dto/AgentAskResponse.java": "fbc87456c500ce2ec904c9aeb69b8c322451b25ead18959f84f27d45af97e39a",
+      "src/main/java/com/example/agent/dto/AgentRunDetailResponse.java": "10a5213d5f8855de439742c82d83c834a9a4ae262e152f400b1ce0b1b7f8fa40",
+      "src/main/java/com/example/agent/dto/AgentRunListItemResponse.java": "4cfc781fab67fc288dc0dde09c621cfd04fe43d23798afbb21f8f90a305038d6",
+      "src/main/java/com/example/agent/dto/AgentRunPageResponse.java": "04f23983896cbe88af723e2f569a5518c0445ff2caaf37d6d1d4b163902b1f6e",
+      "src/main/java/com/example/agent/dto/AgentRunResponse.java": "c971f4091c8ea4533abacaa1bf2d16e50481f83f6a504d2b43540255fb09dbb8",
+      "src/main/java/com/example/agent/dto/AgentRunStatsResponse.java": "4937e0ad0a6abec59358538fd40f271a6c6da714e8edb183df7ece2978e9466f",
+      "src/main/java/com/example/agent/dto/AgentTraceStep.java": "d1860c47b7c86e744b5cc852819e8a2b60ce185e501b6b1565d5957eb06779a7",
+      "src/main/java/com/example/agent/dto/AgentTraceStepResponse.java": "b97c07239431994a192a58fc1a8a5cd612e2c4099f029362c102926333e257f8",
+      "src/main/java/com/example/agent/dto/KnowledgeIndexPlanResponse.java": "790f4ca708edeae85361593752627a9c42557e436e71768b7f81c8461e14880a",
+      "src/main/java/com/example/agent/dto/KnowledgeIndexSyncResponse.java": "5eaab8f780fd975442548f87fa9029105171e6a8440a6eea4ebac3349752941a",
+      "src/main/java/com/example/agent/dto/KnowledgeRetrievalPhase.java": "f9a544ff91a09804b7778eb88b9a6926b795eed6c9d6a21415513eaf21104db7",
+      "src/main/java/com/example/agent/dto/RagBenchmarkResponse.java": "a8800a8dae88d3795d2bc7a3997910b457d476a43657421a91baec4ebc0eba80",
+      "src/main/java/com/example/agent/dto/ToolExecutionResult.java": "561f7d687615362cb6570122d20d0e122ed0eec1c6188bf0ff6e47c357115cba",
+      "src/main/java/com/example/agent/dto/ToolInfo.java": "85fedf2c3cecee36f9823111c6968991f1a05f95ca57580b53472ff18640225e",
+      "src/main/java/com/example/agent/dto/ToolStatsItem.java": "e8a1c47ed2ec053d65d5a90ad23b6ce6770b600c7005ac1b14024e44dc95dc32",
+      "src/main/java/com/example/agent/dto/VectorKnowledgeIndexResponse.java": "bcedd6629fc21745f168bdaede09c66074d585b1b4912c89388c6e80fcbb273c",
+      "src/main/java/com/example/agent/dto/VectorKnowledgeSearchHit.java": "80bbfe5d4dd17d277ed8d1d8a9f7b1dfc289ad74cd1ea46e3d816cd5c02f2bf2",
+      "src/main/java/com/example/agent/dto/VectorKnowledgeSearchResponse.java": "2c8dfde2992dbbb2f6d9d30ce42a14996ba1289c61e2a4f15c93bcc440ff7399",
+      "src/main/java/com/example/agent/dto/VectorRagAskRequest.java": "cb54ce9d20015a69a70d364f1b4745af8d61de5b1c37c3d3a6fc5fa6cfd5ce0d",
+      "src/main/java/com/example/agent/dto/VectorRagAskResponse.java": "c47276d0ec050e06d4c3a61fb567757d306a364acf008bffab8b0273d46c41d8",
+      "src/main/java/com/example/agent/dto/VectorRagCitation.java": "e1a8536a0cc77e15090cf4d33dc5649701f43c41b028013ad3f70515d67f1d6a",
+      "src/main/java/com/example/agent/entity/AgentRunLog.java": "61bb5e3da217720c49017e61ec0bb1ab0d07f53596804c19affe96f199f524fb",
+      "src/main/java/com/example/agent/entity/AgentStepLog.java": "d8908a4eb0550156455b9048c14230f0fe4ffc9d67fa06a12ee0bf58b8f8ba7c",
+      "src/main/java/com/example/agent/exception/BusinessException.java": "783e288740dbe39f255e39402f4ab8a1eb709a909619198ca44d4c8e35589d2c",
+      "src/main/java/com/example/agent/exception/GlobalExceptionHandler.java": "cd108654f54a22a7078c08ec284306c82c38692e343329dd74277d0b29fce78d",
+      "src/main/java/com/example/agent/mapper/AgentRunLogMapper.java": "29ffc7f9ced4d8c73ff720cf1ffdf1f3f40354a46a69865c5bc15c727f91e6eb",
+      "src/main/java/com/example/agent/mapper/AgentStepLogMapper.java": "0c7d019d05c53d71885e330f48f99928c1c818cf9d6859db9ec2182f166a5074",
+      "src/main/java/com/example/agent/rag/Bm25KnowledgeIndex.java": "d56b6cb474d930b38f9f959bac83e026b0e94494653e4855a56dd103c5a132fa",
+      "src/main/java/com/example/agent/rag/KnowledgeChunk.java": "b3f7099693909139f611a57a6580d195ab18948b4b6cb61cf17641ec66e9d4e7",
+      "src/main/java/com/example/agent/rag/KnowledgeRetrievalResult.java": "f69db2f066c0652410e637b10865a48ccf69cb8fa08d534bb1e41042665f5140",
+      "src/main/java/com/example/agent/rag/KnowledgeRetriever.java": "9b2061ab527ad261ec1a14ccaaf5d920bdfec45354c81d15ce9b0ae6d7431612",
+      "src/main/java/com/example/agent/rag/KnowledgeSearchResult.java": "96b94c8ff88a041554c5f7ebed50e4137aaa07671b57ecacd2de6e61ae5281c9",
+      "src/main/java/com/example/agent/rag/RagBenchmarkService.java": "442282bc3aa6e63c16a510ed82136706e4387b7a7ef323a475cb053316f9c31c",
+      "src/main/java/com/example/agent/rag/RrfKnowledgeFusion.java": "4be59e2d2453dffe14a78379191bbfdaacebe0f5a785d2fc1de4322258eb49ac",
+      "src/main/java/com/example/agent/rag/RuleKnowledgeRetriever.java": "9e111b7929a6d32363b2251aa4fe4a1ba9f18ef41f5515ad2c0f8c8030449e1b",
+      "src/main/java/com/example/agent/rag/SimpleRagRetriever.java": "d349c254881c80f7262f429594c3bd1bbe3f53bcae476bce733b2ff18190c911",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeIndexPlanner.java": "6e8864d886c4b8dd0044e631a4a91b234edd4851a69a74f9f4db1014f9fa88d3",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeIndexState.java": "d43ad2365dccba306c7280fa0523a6e23b2e33cb2f5b294793c4922a9331b45c",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeIndexSyncService.java": "62569f8f1d65b98112fb87d044a6a1dd65a148dfaedafc448ea7334c6b497345",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeManifest.java": "59cc37c4fd894829e90f57c9c7946ffd36bdbd922ac084d7443a1603afbe4072",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeManifestLoader.java": "ae37d8e13d2f46ff5bed4f413be09ee46bbb3cc5cdd16305d079c4a68856e929",
+      "src/main/java/com/example/agent/rag/vector/KnowledgeSource.java": "5406d80f65f9066ec0d2d85d238930abecf35b543097aef1145a41c48d32297a",
+      "src/main/java/com/example/agent/rag/vector/MarkdownSectionChunker.java": "d9042f018c527a72f93b39e2c1cda19c88135145e7f7d11d1ba78e345c6e8cb2",
+      "src/main/java/com/example/agent/rag/vector/VectorKnowledgeService.java": "5b087194cd97a257e1d730af59a1a8b0459f28d9d7f347c616c7fe6ffc397b56",
+      "src/main/java/com/example/agent/rag/vector/VectorRagService.java": "4750042f3c2ebf42537aa28a0c52b1e5f67168208c711a41d241b62fc64479be",
+      "src/main/java/com/example/agent/rag/VectorKnowledgeRetriever.java": "75b0edfe34adfe893ce7f2f6f0554b722606818a0cb0602acdb753df951c3af3",
+      "src/main/java/com/example/agent/service/AgentLogService.java": "2c7dd670e7a02e82909af9ed9ae053a14d827c994927f583d7696bbcc0629716",
+      "src/main/java/com/example/agent/service/SpringAiToolChatService.java": "b9a40d28987f284c3d33c8685e64c55bd70c1d9f65301964f43368938b9427f0",
+      "src/main/java/com/example/agent/sql/SqlErrorEvidence.java": "6f18e93fe959e08aa7afc3d2dff96de878ae606414a39ee9d257f79e671f93ce",
+      "src/main/java/com/example/agent/sql/SqlErrorEvidenceExtractor.java": "c096620f00f439fa33622a6a263786b808a8e60751eb22fe1d6a89fdf85b6e94",
+      "src/main/java/com/example/agent/stacktrace/StackTraceAnalysisResult.java": "d7794d189728e1ab5cfe3df55479192196d322ae9d30fed322b25e1fd60c1c22",
+      "src/main/java/com/example/agent/stacktrace/StackTraceCause.java": "003f63f3d1118f4bad46c57452b7f8029333c1adcc27c389fd52b9d368144170",
+      "src/main/java/com/example/agent/stacktrace/StackTraceFrame.java": "59e871cbd0cbadb48606c8b48d4c693cf39d1145378163ab65188d77c405a8c6",
+      "src/main/java/com/example/agent/stacktrace/StackTraceParser.java": "6869fd01c32ffea43397d2911576f184ae088c706018c66c65cf2609de24514e",
+      "src/main/java/com/example/agent/support/AgentJsonHelper.java": "b99588857c9a346caf10f901b2b0c6748fe770bf9b78ab90285e39c358068e2e",
+      "src/main/java/com/example/agent/support/AgentTraceSanitizer.java": "487db939276d8ea3c611a76e42130086fb84d8f3d886d50e4d1df3b6065ccbae",
+      "src/main/java/com/example/agent/support/TraceContentSanitizer.java": "d9fd477711f31a6c18729e0f221c364f40a38693c669773916e71b000cdf42fc",
+      "src/main/java/com/example/agent/tool/AgentTool.java": "5f1078eeb18be67de13ada9a720aa533ecb07ab8473b71563782712b4721d2df",
+      "src/main/java/com/example/agent/tool/AnalyzeSqlErrorWithSchemaTool.java": "57e1a024ea679ef05497074a7b8757d507dd3978852e10f95e373b7058a8ac80",
+      "src/main/java/com/example/agent/tool/AnalyzeStackTraceTool.java": "91c16b127ff0e56896a2963ecabb83af864da05f7dade8c776a36dd8d0346f31",
+      "src/main/java/com/example/agent/tool/GetTableSchemaTool.java": "2ec17acda9ef006211f40b6513fc8202e370cb64402996c406d6499c1a43bcb1",
+      "src/main/java/com/example/agent/tool/springai/KnowledgeCitationChecker.java": "5e9474f934ea698eb9e9277a66a736aaa9364967cf86242afce2e483380daf0e",
+      "src/main/java/com/example/agent/tool/springai/SpringAiDiagnosticTools.java": "9ff7edea58987de4a91b287232c2225da7d0d9c80d7beeefdb5d8d017a9cef6b",
+      "src/main/java/com/example/agent/tool/springai/SpringAiKnowledgeSupport.java": "4a1dff28a08feac78f2163c9d692aecdfa42cccf57ebceb79a2d445de9bbcb3b",
+      "src/main/java/com/example/agent/tool/springai/SpringAiRequestBoundaryPolicy.java": "2781d4352bff73e2703c412b9d8128640692a95d4ffa133a888532ef810e6d21",
+      "src/main/java/com/example/agent/tool/springai/SpringAiToolAbortException.java": "cb2603a653bf89c94b896f8a6f38948653732e19fd65bf43562691a838aff101",
+      "src/main/java/com/example/agent/tool/springai/SpringAiToolAvailabilityPolicy.java": "c30acf6803067e14bce449258beb7d7520359bdc7daa1d5146bbc2a445f538a0",
+      "src/main/java/com/example/agent/tool/springai/SpringAiToolRunContext.java": "2c1951b39f39dc350d1f04370ccef1b8eccf2fe0043c84b8048260f18715ddbe",
+      "src/main/java/com/example/agent/tool/ToolAccessDecision.java": "291a18da31279329f4d808a2d9f73d157cfdafe91c42bdbbdcd98b5bab8364be",
+      "src/main/java/com/example/agent/tool/ToolAccessPolicy.java": "d368e9a2735f7abca8c091cfc5b8ebba2fc1729f050dcbaa6c4519eb15900b08",
+      "src/main/java/com/example/agent/tool/ToolArgumentValidator.java": "9825fede3e0e5add45a2b0af26c9bc7c0f1ba6e40152adf480e9c89b0e3a9135",
+      "src/main/java/com/example/agent/tool/ToolBusinessException.java": "374f278cf16ef4610eccfd06a285156100f36eb4cb988beb45403369786536ee",
+      "src/main/java/com/example/agent/tool/ToolDefinition.java": "e668e19a0aa057a73226a95ac8e23bc039c1db69da9e886903de775be53f0960",
+      "src/main/java/com/example/agent/tool/ToolExecutionRunner.java": "e975c42b83aaefc20f82190dd79c4d614f703b2fa9ea1b4a00ae6feab3e3bd48",
+      "src/main/java/com/example/agent/tool/ToolExecutionStatus.java": "3636609f8478802627616e931fa9bd65626bffe50db49a53ac02fe2ef1ffd6b9",
+      "src/main/java/com/example/agent/tool/ToolParameterDefinition.java": "4dfb62103abbc83b233416a7d63189ebcbb641b32c8ba26b4f8463b43fbb3821",
+      "src/main/java/com/example/agent/tool/ToolParameterType.java": "bf6fe49d8bca8d755f72dc7fe5560bff9af3221330a673e5a0cbdd5c450df9ac",
+      "src/main/java/com/example/agent/tool/ToolRegistry.java": "a538e913eb95ebf0665b034be4c6594a7b2b7c4fa717ca4b5792e5851bb95fd6",
+      "src/main/java/com/example/agent/tool/ToolRiskLevel.java": "ea093d64d25527ebd59a378e0a2fbe96ef75a3c92677c77247a469781e5ce3f8",
+      "src/main/java/com/example/agent/tool/ToolSideEffect.java": "b4bc7f0052ff4c00d1fb6b3fbc008833f29f5782d8c15736536f65b4b64e87ad",
+      "src/main/java/com/example/agent/tool/ToolTimeoutException.java": "9e7545877e082cf0be20a1fe86fa311f5ca9dedba39ca99651364919185e5409",
+      "src/main/resources/docs/knowledge/manifest.json": "7e9b8ca2b0bfdb202d5b84ceb7f8e790ce3e125293738279f204e92a1602d768",
+      "src/main/resources/docs/knowledge/sql/data-too-long.md": "f497e820c4d0023806a52bd7aec3fb8e15b1ff5741a2563464454dee7a83def4",
+      "src/main/resources/docs/knowledge/sql/duplicate-entry.md": "ad401b714880869b07caf71659264b1c6e1470421429769e7bbe0533a2584d8b",
+      "src/main/resources/docs/knowledge/sql/foreign-key-constraint.md": "d17ea1cb046e07cf3c70cfaae55e6b3d22072820eed812e0c7b12eb1b7316863",
+      "src/main/resources/docs/knowledge/sql/table-not-exist.md": "89fc9ee3f631279aaf0fccdd83f4574ba6772df202ef0cf64818e271cee5e179",
+      "src/main/resources/docs/knowledge/sql/unknown-column.md": "d1c192140de88168ae1232831b3e416a26f6d9b63ad205b4e060d867d1e0058a"
+    },
+    "meaning": "RUNNER_WORKSPACE_ONLY; not a server code identity assertion"
+  },
+  "warmup": [
+    {
+      "caseId": "unknown-column-error-001",
+      "strategy": "hybrid",
+      "query": "MyBatis 查询时报 Unknown column 'user_name' in 'field list' 是什么意思",
+      "expected": {
+        "source": "docs/knowledge/sql/unknown-column.md",
+        "section": "典型报错",
+        "evidence": "Unknown column 'xxx' in 'field list'"
+      },
+      "requestedTopK": 5,
+      "clientCostMs": 273.0526998639107,
+      "response": {
+        "schemaVersion": "rag-benchmark-response-v1",
+        "strategy": "hybrid",
+        "resultUnit": "chunk",
+        "query": "MyBatis 查询时报 Unknown column 'user_name' in 'field list' 是什么意思",
+        "requestedTopK": 5,
+        "effectiveTopK": 5,
+        "costMs": 216.7398,
+        "hits": [
+          {
+            "chunkId": "fe718657-1f21-36aa-85b8-3c3af72e22fb",
+            "source": "docs/knowledge/sql/unknown-column.md",
+            "title": "Unknown column 排查指南",
+            "section": "典型报错",
+            "score": 0.03278688524590164,
+            "content": "# Unknown column 排查指南\n\n## 典型报错\n\n`Unknown column 'xxx' in 'field list'`\n\n这个错误表示 SQL 引用了某个字段，但数据库实际执行时找不到该字段。"
+          },
+          {
+            "chunkId": "ecc9e955-c9e2-32b0-b6ad-422b48bb24b5",
+            "source": "docs/knowledge/sql/unknown-column.md",
+            "title": "Unknown column 排查指南",
+            "section": "常见原因",
+            "score": 0.03225806451612903,
+            "content": "# Unknown column 排查指南\n\n## 常见原因\n\n1. SQL、Mapper XML 或注解 SQL 中写了不存在的字段。\n2. 查询字段使用了错误的表别名，例如 `SELECT u.name FROM user t`。\n3. Java 实体字段、`@TableField` 映射和数据库字段名不一致。\n4. 数据库没有执行最新 DDL，当前环境表结构落后。\n5. 连接到了错误数据库或错误 schema。\n6. 代码分支、数据库版本和运行环境不一致。"
+          },
+          {
+            "chunkId": "b5642c17-5955-341e-a495-d0c4fe18ed09",
+            "source": "docs/knowledge/sql/unknown-column.md",
+            "title": "Unknown column 排查指南",
+            "section": "排查顺序",
+            "score": 0.03149801587301587,
+            "content": "# Unknown column 排查指南\n\n## 排查顺序\n\n1. 先以工具查询到的真实表结构为准。\n2. 从报错信息中提取缺失字段名。\n3. 确认报错 SQL 实际访问的是哪张表、使用了哪个别名。\n4. 对比缺失字段是否存在于工具返回的 `existingColumns` 或 `tableSchema`。\n5. 如果字段不存在，检查 Mapper XML、实体类、数据库迁移脚本和运行环境。\n6. 如果字段存在，重点检查 SQL 别名、拼接逻辑、数据库连接环境和大小写差异。"
+          },
+          {
+            "chunkId": "6a4843ed-bd4c-3baa-b5b3-a545e44a38e1",
+            "source": "docs/knowledge/sql/unknown-column.md",
+            "title": "Unknown column 排查指南",
+            "section": "回答要求",
+            "score": 0.03125763125763126,
+            "content": "# Unknown column 排查指南\n\n## 回答要求\n\n1. 必须优先引用工具返回的 `diagnosis`、`missingColumns`、`existingColumns`、`suggestedActions`。\n2. 如果工具已经确认字段不存在，应明确说明字段不存在，不要说成“可能不存在”。\n3. 不要枚举完整表结构，除非用户明确要求。\n4. 不要直接生成 `ALTER TABLE`，除非用户明确要求新增字段，并提供字段类型、长度、默认值和业务含义。\n5. 建议优先从 Mapper XML、实体类字段、数据库版本和连接环境排查。"
+          },
+          {
+            "chunkId": "b9d8b2e4-daf4-3e38-a1b4-00f8ae9fcd40",
+            "source": "docs/knowledge/sql/table-not-exist.md",
+            "title": "Table doesn't exist 排查指南",
+            "section": "典型报错",
+            "score": 0.031009615384615385,
+            "content": "# Table doesn't exist 排查指南\n\n## 典型报错\n\n`Table 'database.table_name' doesn't exist`\n\n这个错误表示 SQL 执行时访问的表在当前数据库连接环境中不存在。"
+          }
+        ],
+        "configuration": {
+          "knowledgeVersion": "m5-seed-v1",
+          "category": "mysql",
+          "visibility": "public",
+          "sourceFilter": null,
+          "corpusDocumentCount": 5,
+          "sourceInventory": [
+            {
+              "category": "mysql",
+              "contentSha256": "f497e820c4d0023806a52bd7aec3fb8e15b1ff5741a2563464454dee7a83def4",
+              "source": "docs/knowledge/sql/data-too-long.md",
+              "title": "Data too long 排查指南",
+              "visibility": "public"
+            },
+            {
+              "category": "mysql",
+              "contentSha256": "ad401b714880869b07caf71659264b1c6e1470421429769e7bbe0533a2584d8b",
+              "source": "docs/knowledge/sql/duplicate-entry.md",
+              "title": "Duplicate entry 排查指南",
+              "visibility": "public"
+            },
+            {
+              "category": "mysql",
+              "contentSha256": "d17ea1cb046e07cf3c70cfaae55e6b3d22072820eed812e0c7b12eb1b7316863",
+              "source": "docs/knowledge/sql/foreign-key-constraint.md",
+              "title": "Foreign key constraint 排查指南",
+              "visibility": "public"
+            },
+            {
+              "category": "mysql",
+              "contentSha256": "89fc9ee3f631279aaf0fccdd83f4574ba6772df202ef0cf64818e271cee5e179",
+              "source": "docs/knowledge/sql/table-not-exist.md",
+              "title": "Table doesn't exist 排查指南",
+              "visibility": "public"
+            },
+            {
+              "category": "mysql",
+              "contentSha256": "d1c192140de88168ae1232831b3e416a26f6d9b63ad205b4e060d867d1e0058a",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "visibility": "public"
+            }
+          ],
+          "corpusSha256": "a5e92c695b9867417371ef86ab12411eef3b49db61e6a32c27b856d26636392c",
+          "scopeMechanism": "dense-filter-and-bm25-manifest",
+          "similarityThreshold": 0.0,
+          "configuredCollection": "ai_agent_knowledge_managed_v1",
+          "configuredEmbeddingModel": "bge-m3:latest",
+          "configuredEmbeddingRevision": "bge-m3-local-v1",
+          "indexStatePresent": true,
+          "indexStateSha256": "c7d9280bcc463d028f3992749f55eda4b52dbfa2f1335a109c48c1670f98e19b",
+          "indexVerification": "LOCAL_STATE_ONLY_NOT_LIVE_QDRANT_VERIFICATION",
+          "engine": "rrf",
+          "rrfRankConstant": 60,
+          "rrfWeights": [
+            1,
+            1
+          ],
+          "candidateTopK": 5,
+          "outputTopK": 5,
+          "tieBreak": "chunkId-asc",
+          "execution": "sequential",
+          "timingScope": "sum-branch-costMs-plus-fusion",
+          "bm25Configuration": {
+            "knowledgeVersion": "m5-seed-v1",
+            "category": "mysql",
+            "visibility": "public",
+            "sourceFilter": null,
+            "corpusDocumentCount": 5,
+            "sourceInventory": [
+              {
+                "category": "mysql",
+                "contentSha256": "f497e820c4d0023806a52bd7aec3fb8e15b1ff5741a2563464454dee7a83def4",
+                "source": "docs/knowledge/sql/data-too-long.md",
+                "title": "Data too long 排查指南",
+                "visibility": "public"
+              },
+              {
+                "category": "mysql",
+                "contentSha256": "ad401b714880869b07caf71659264b1c6e1470421429769e7bbe0533a2584d8b",
+                "source": "docs/knowledge/sql/duplicate-entry.md",
+                "title": "Duplicate entry 排查指南",
+                "visibility": "public"
+              },
+              {
+                "category": "mysql",
+                "contentSha256": "d17ea1cb046e07cf3c70cfaae55e6b3d22072820eed812e0c7b12eb1b7316863",
+                "source": "docs/knowledge/sql/foreign-key-constraint.md",
+                "title": "Foreign key constraint 排查指南",
+                "visibility": "public"
+              },
+              {
+                "category": "mysql",
+                "contentSha256": "89fc9ee3f631279aaf0fccdd83f4574ba6772df202ef0cf64818e271cee5e179",
+                "source": "docs/knowledge/sql/table-not-exist.md",
+                "title": "Table doesn't exist 排查指南",
+                "visibility": "public"
+              },
+              {
+                "category": "mysql",
+                "contentSha256": "d1c192140de88168ae1232831b3e416a26f6d9b63ad205b4e060d867d1e0058a",
+                "source": "docs/knowledge/sql/unknown-column.md",
+                "title": "Unknown column 排查指南",
+                "visibility": "public"
+              }
+            ],
+            "corpusSha256": "a5e92c695b9867417371ef86ab12411eef3b49db61e6a32c27b856d26636392c",
+            "scopeMechanism": "manifest-scope-at-index-build",
+            "engine": "lucene",
+            "luceneVersion": "9.12.3",
+            "analyzer": "SmartChineseAnalyzer",
+            "queryOperator": "SHOULD",
+            "k1": 1.2,
+            "b": 0.75,
+            "indexedChunkCount": 20,
+            "indexBuildMs": 779.0369
+          }
+        },
+        "diagnostics": {
+          "denseHits": [
+            {
+              "chunkId": "fe718657-1f21-36aa-85b8-3c3af72e22fb",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "典型报错",
+              "score": 0.6566149592399597,
+              "content": "# Unknown column 排查指南\n\n## 典型报错\n\n`Unknown column 'xxx' in 'field list'`\n\n这个错误表示 SQL 引用了某个字段，但数据库实际执行时找不到该字段。"
+            },
+            {
+              "chunkId": "ecc9e955-c9e2-32b0-b6ad-422b48bb24b5",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "常见原因",
+              "score": 0.5923826694488525,
+              "content": "# Unknown column 排查指南\n\n## 常见原因\n\n1. SQL、Mapper XML 或注解 SQL 中写了不存在的字段。\n2. 查询字段使用了错误的表别名，例如 `SELECT u.name FROM user t`。\n3. Java 实体字段、`@TableField` 映射和数据库字段名不一致。\n4. 数据库没有执行最新 DDL，当前环境表结构落后。\n5. 连接到了错误数据库或错误 schema。\n6. 代码分支、数据库版本和运行环境不一致。"
+            },
+            {
+              "chunkId": "6a4843ed-bd4c-3baa-b5b3-a545e44a38e1",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "回答要求",
+              "score": 0.5848273038864136,
+              "content": "# Unknown column 排查指南\n\n## 回答要求\n\n1. 必须优先引用工具返回的 `diagnosis`、`missingColumns`、`existingColumns`、`suggestedActions`。\n2. 如果工具已经确认字段不存在，应明确说明字段不存在，不要说成“可能不存在”。\n3. 不要枚举完整表结构，除非用户明确要求。\n4. 不要直接生成 `ALTER TABLE`，除非用户明确要求新增字段，并提供字段类型、长度、默认值和业务含义。\n5. 建议优先从 Mapper XML、实体类字段、数据库版本和连接环境排查。"
+            },
+            {
+              "chunkId": "b5642c17-5955-341e-a495-d0c4fe18ed09",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "排查顺序",
+              "score": 0.5659165382385254,
+              "content": "# Unknown column 排查指南\n\n## 排查顺序\n\n1. 先以工具查询到的真实表结构为准。\n2. 从报错信息中提取缺失字段名。\n3. 确认报错 SQL 实际访问的是哪张表、使用了哪个别名。\n4. 对比缺失字段是否存在于工具返回的 `existingColumns` 或 `tableSchema`。\n5. 如果字段不存在，检查 Mapper XML、实体类、数据库迁移脚本和运行环境。\n6. 如果字段存在，重点检查 SQL 别名、拼接逻辑、数据库连接环境和大小写差异。"
+            },
+            {
+              "chunkId": "b9d8b2e4-daf4-3e38-a1b4-00f8ae9fcd40",
+              "source": "docs/knowledge/sql/table-not-exist.md",
+              "title": "Table doesn't exist 排查指南",
+              "section": "典型报错",
+              "score": 0.4766075909137726,
+              "content": "# Table doesn't exist 排查指南\n\n## 典型报错\n\n`Table 'database.table_name' doesn't exist`\n\n这个错误表示 SQL 执行时访问的表在当前数据库连接环境中不存在。"
+            }
+          ],
+          "bm25Hits": [
+            {
+              "chunkId": "fe718657-1f21-36aa-85b8-3c3af72e22fb",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "典型报错",
+              "score": 6.845056056976318,
+              "content": "# Unknown column 排查指南\n\n## 典型报错\n\n`Unknown column 'xxx' in 'field list'`\n\n这个错误表示 SQL 引用了某个字段，但数据库实际执行时找不到该字段。"
+            },
+            {
+              "chunkId": "ecc9e955-c9e2-32b0-b6ad-422b48bb24b5",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "常见原因",
+              "score": 3.8864831924438477,
+              "content": "# Unknown column 排查指南\n\n## 常见原因\n\n1. SQL、Mapper XML 或注解 SQL 中写了不存在的字段。\n2. 查询字段使用了错误的表别名，例如 `SELECT u.name FROM user t`。\n3. Java 实体字段、`@TableField` 映射和数据库字段名不一致。\n4. 数据库没有执行最新 DDL，当前环境表结构落后。\n5. 连接到了错误数据库或错误 schema。\n6. 代码分支、数据库版本和运行环境不一致。"
+            },
+            {
+              "chunkId": "b5642c17-5955-341e-a495-d0c4fe18ed09",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "排查顺序",
+              "score": 2.1236701011657715,
+              "content": "# Unknown column 排查指南\n\n## 排查顺序\n\n1. 先以工具查询到的真实表结构为准。\n2. 从报错信息中提取缺失字段名。\n3. 确认报错 SQL 实际访问的是哪张表、使用了哪个别名。\n4. 对比缺失字段是否存在于工具返回的 `existingColumns` 或 `tableSchema`。\n5. 如果字段不存在，检查 Mapper XML、实体类、数据库迁移脚本和运行环境。\n6. 如果字段存在，重点检查 SQL 别名、拼接逻辑、数据库连接环境和大小写差异。"
+            },
+            {
+              "chunkId": "b9d8b2e4-daf4-3e38-a1b4-00f8ae9fcd40",
+              "source": "docs/knowledge/sql/table-not-exist.md",
+              "title": "Table doesn't exist 排查指南",
+              "section": "典型报错",
+              "score": 1.2632591724395752,
+              "content": "# Table doesn't exist 排查指南\n\n## 典型报错\n\n`Table 'database.table_name' doesn't exist`\n\n这个错误表示 SQL 执行时访问的表在当前数据库连接环境中不存在。"
+            },
+            {
+              "chunkId": "6a4843ed-bd4c-3baa-b5b3-a545e44a38e1",
+              "source": "docs/knowledge/sql/unknown-column.md",
+              "title": "Unknown column 排查指南",
+              "section": "回答要求",
+              "score": 1.238321304321289,
+              "content": "# Unknown column 排查指南\n\n## 回答要求\n\n1. 必须优先引用工具返回的 `diagnosis`、`missingColumns`、`existingColumns`、`suggestedActions`。\n2. 如果工具已经确认字段不存在，应明确说明字段不存在，不要说成“可能不存在”。\n3. 不要枚举完整表结构，除非用户明确要求。\n4. 不要直接生成 `ALTER TABLE`，除非用户明确要求新增字段，并提供字段类型、长度、默认值和业务含义。\n5. 建议优先从 Mapper XML、实体类字段、数据库版本和连接环境排查。"
+            }
+          ],
+          "ranking": [
+            {
+              "chunkId": "fe718657-1f21-36aa-85b8-3c3af72e22fb",
+              "denseRank": 1,
+              "bm25Rank": 1,
+              "rrfScore": 0.03278688524590164
+            },
+            {
+              "chunkId": "ecc9e955-c9e2-32b0-b6ad-422b48bb24b5",
+              "denseRank": 2,
+              "bm25Rank": 2,
+              "rrfScore": 0.03225806451612903
+            },
+            {
+              "chunkId": "b5642c17-5955-341e-a495-d0c4fe18ed09",
+              "denseRank": 4,
+              "bm25Rank": 3,
+              "rrfScore": 0.03149801587301587
+            },
+            {
+              "chunkId": "6a4843ed-bd4c-3baa-b5b3-a545e44a38e1",
+              "denseRank": 3,
+              "bm25Rank": 5,
+              "rrfScore": 0.03125763125763126
+            },
+            {
+              "chunkId": "b9d8b2e4-daf4-3e38-a1b4-00f8ae9fcd40",
+              "denseRank": 5,
+              "bm25Rank": 4,
+              "rrfScore": 0.031009615384615385
+            }
+          ],
+          "denseCostMs": 214.6997,
+          "bm25CostMs": 1.9771,
+          "fusionCostMs": 0.063
+        }
+      },
+      "scores": {
+        "sourceHitAt1": true,
+        "sourceHitWithinRawK": true,
+        "evidenceAvailable": true,
+        "evidenceHitAtK": true,
+        "evidenceReciprocalRankAtK": 1.0,
+        "firstEvidenceRank": 1,
+        "returnedCount": 5,
+        "distinctSourceCount": 2,
+        "returnedCharsUtf16": 970
+      },
+      "status": "SUCCESS"
+    }
+  ],
+  "observedConfigurations": {
+    "hybrid": {
+      "knowledgeVersion": "m5-seed-v1",
+      "category": "mysql",
+      "visibility": "public",
+      "sourceFilter": null,
+      "corpusDocumentCount": 5,
+      "sourceInventory": [
+        {
+          "category": "mysql",
+          "contentSha256": "f497e820c4d0023806a52bd7aec3fb8e15b1ff5741a2563464454dee7a83def4",
+          "source": "docs/knowledge/sql/data-too-long.md",
+          "title": "Data too long 排查指南",
+          "visibility": "public"
+        },
+        {
+          "category": "mysql",
+          "contentSha256": "ad401b714880869b07caf71659264b1c6e1470421429769e7bbe0533a2584d8b",
+          "source": "docs/knowledge/sql/duplicate-entry.md",
+          "title": "Duplicate entry 排查指南",
+          "visibility": "public"
+        },
+        {
+          "category": "mysql",
+          "contentSha256": "d17ea1cb046e07cf3c70cfaae55e6b3d22072820eed812e0c7b12eb1b7316863",
+          "source": "docs/knowledge/sql/foreign-key-constraint.md",
+          "title": "Foreign key constraint 排查指南",
+          "visibility": "public"
+        },
+        {
+          "category": "mysql",
+          "contentSha256": "89fc9ee3f631279aaf0fccdd83f4574ba6772df202ef0cf64818e271cee5e179",
+          "source": "docs/knowledge/sql/table-not-exist.md",
+          "title": "Table doesn't exist 排查指南",
+          "visibility": "public"
+        },
+        {
+          "category": "mysql",
+          "contentSha256": "d1c192140de88168ae1232831b3e416a26f6d9b63ad205b4e060d867d1e0058a",
+          "source": "docs/knowledge/sql/unknown-column.md",
+          "title": "Unknown column 排查指南",
+          "visibility": "public"
+        }
+      ],
+      "corpusSha256": "a5e92c695b9867417371ef86ab12411eef3b49db61e6a32c27b856d26636392c",
+      "scopeMechanism": "dense-filter-and-bm25-manifest",
+      "similarityThreshold": 0.0,
+      "configuredCollection": "ai_agent_knowledge_managed_v1",
+      "configuredEmbeddingModel": "bge-m3:latest",
+      "configuredEmbeddingRevision": "bge-m3-local-v1",
+      "indexStatePresent": true,
+      "indexStateSha256": "c7d9280bcc463d028f3992749f55eda4b52dbfa2f1335a109c48c1670f98e19b",
+      "indexVerification": "LOCAL_STATE_ONLY_NOT_LIVE_QDRANT_VERIFICATION",
+      "engine": "rrf",
+      "rrfRankConstant": 60,
+      "rrfWeights": [
+        1,
+        1
+      ],
+      "candidateTopK": 5,
+      "outputTopK": 5,
+      "tieBreak": "chunkId-asc",
+      "execution": "sequential",
+      "timingScope": "sum-branch-costMs-plus-fusion",
+      "bm25Configuration": {
+        "knowledgeVersion": "m5-seed-v1",
+        "category": "mysql",
+        "visibility": "public",
+        "sourceFilter": null,
+        "corpusDocumentCount": 5,
+        "sourceInventory": [
+          {
+            "category": "mysql",
+            "contentSha256": "f497e820c4d0023806a52bd7aec3fb8e15b1ff5741a2563464454dee7a83def4",
+            "source": "docs/knowledge/sql/data-too-long.md",
+            "title": "Data too long 排查指南",
+            "visibility": "public"
+          },
+          {
+            "category": "mysql",
+            "contentSha256": "ad401b714880869b07caf71659264b1c6e1470421429769e7bbe0533a2584d8b",
+            "source": "docs/knowledge/sql/duplicate-entry.md",
+            "title": "Duplicate entry 排查指南",
+            "visibility": "public"
+          },
+          {
+            "category": "mysql",
+            "contentSha256": "d17ea1cb046e07cf3c70cfaae55e6b3d22072820eed812e0c7b12eb1b7316863",
+            "source": "docs/knowledge/sql/foreign-key-constraint.md",
+            "title": "Foreign key constraint 排查指南",
+            "visibility": "public"
+          },
+          {
+            "category": "mysql",
+            "contentSha256": "89fc9ee3f631279aaf0fccdd83f4574ba6772df202ef0cf64818e271cee5e179",
+            "source": "docs/knowledge/sql/table-not-exist.md",
+            "title": "Table doesn't exist 排查指南",
+            "visibility": "public"
+          },
+          {
+            "category": "mysql",
+            "contentSha256": "d1c192140de88168ae1232831b3e416a26f6d9b63ad205b4e060d867d1e0058a",
+            "source": "docs/knowledge/sql/unknown-column.md",
+            "title": "Unknown column 排查指南",
+            "visibility": "public"
+          }
+        ],
+        "corpusSha256": "a5e92c695b9867417371ef86ab12411eef3b49db61e6a32c27b856d26636392c",
+        "scopeMechanism": "manifest-scope-at-index-build",
+        "engine": "lucene",
+        "luceneVersion": "9.12.3",
+        "analyzer": "SmartChineseAnalyzer",
+        "queryOperator": "SHOULD",
+        "k1": 1.2,
+        "b": 0.75,
+        "indexedChunkCount": 20,
+        "indexBuildMs": 779.0369
+      }
+    }
+  },
+  "finishedAt": "2026-11-01T16:50:07.972695+08:00",
+  "status": "COMPLETED"
+}

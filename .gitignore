@@ -46,3 +46,7 @@ build/
 /.venv-eval/
 
 /data/knowledge-index/
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]
