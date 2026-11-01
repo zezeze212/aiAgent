@@ -38,6 +38,11 @@ public class SimpleRagRetriever {
 		return retrieveByQuery(query);
 	}
 
+	/** 当前规则实际可检索的来源，供基线检查语料范围，不改变匹配规则。 */
+	public List<String> sources() {
+		return RULES.stream().map(KnowledgeRule::source).distinct().toList();
+	}
+
 	/**
 	 * 根据用户问题和工具结果检索相关知识。
 	 * @param userMessage 用户原始问题

@@ -130,6 +130,14 @@ public class VectorKnowledgeService {
 			.build();
 	}
 
+	/** 返回本实例真正用于 search(query, topK) 的策略，避免评测端重复读取配置。 */
+	public SearchPolicy searchPolicy() {
+		return new SearchPolicy(defaultThreshold, category, visibility);
+	}
+
+	public record SearchPolicy(double similarityThreshold, String category, String visibility) {
+	}
+
 	private static void validateThreshold(double threshold) {
 		if (!Double.isFinite(threshold) || threshold < 0 || threshold > 1) {
 			throw new IllegalArgumentException("similarityThreshold 必须是 0～1 之间的有限数值");

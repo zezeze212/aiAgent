@@ -26,4 +26,5 @@ public class RagBenchmarkController {
 			@RequestParam(defaultValue = "5") int topK) {
 		return Result.success(service.search(strategy, query, topK));
 	}
+
 }

@@ -65,6 +65,9 @@ agent:
       max-chunk-chars: 2000
       max-total-chars: 6000
 
+    benchmark:
+      enabled: true
+
     vector:
       enabled: true
       # 本单元先保留宽松对照；不是已经校准好的拒答阈值。

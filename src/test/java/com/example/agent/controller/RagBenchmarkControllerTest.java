@@ -34,12 +34,16 @@ class RagBenchmarkControllerTest {
 				"rule", "document", "唯一键冲突", 5, 1, 0.1, List.of(), Map.of()));
 		when(service.search("dense", "唯一键冲突", 5)).thenThrow(new BusinessException(503, "dense 未启用"));
 		var mvc = MockMvcBuilders.standaloneSetup(new RagBenchmarkController(service))
-			.setControllerAdvice(new GlobalExceptionHandler()).build();
+			.setControllerAdvice(new GlobalExceptionHandler())
+			.build();
 		mvc.perform(get("/rag/benchmark/search").param("strategy", "rule").param("query", "唯一键冲突"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.code").value(200))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value(200))
 			.andExpect(jsonPath("$.data.resultUnit").value("document"))
 			.andExpect(jsonPath("$.data.effectiveTopK").value(1));
 		mvc.perform(get("/rag/benchmark/search").param("strategy", "dense").param("query", "唯一键冲突"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.code").value(503));
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value(503));
 	}
+
 }
