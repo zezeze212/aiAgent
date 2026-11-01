@@ -175,29 +175,21 @@ class RagBenchmarkServiceTest {
 	void shouldCombineBothBranchesAndExposeDiagnostics() {
 		service = spy(service);
 
-		var a = new KnowledgeChunk(
-				"a", "fixture.md", "测试", "章节", 0.9, "A");
-		var b = new KnowledgeChunk(
-				"b", "fixture.md", "测试", "章节", 0.8, "B");
-		var c = new KnowledgeChunk(
-				"c", "fixture.md", "测试", "章节", 9.0, "C");
+		var a = new KnowledgeChunk("a", "fixture.md", "测试", "章节", 0.9, "A");
+		var b = new KnowledgeChunk("b", "fixture.md", "测试", "章节", 0.8, "B");
+		var c = new KnowledgeChunk("c", "fixture.md", "测试", "章节", 9.0, "C");
 
-		doReturn(branchResponse("dense", "same", List.of(a, b)))
-				.when(service).search("dense", "混合检索", 5);
-		doReturn(branchResponse("bm25", "same", List.of(c, b)))
-				.when(service).search("bm25", "混合检索", 5);
+		doReturn(branchResponse("dense", "same", List.of(a, b))).when(service).search("dense", "混合检索", 5);
+		doReturn(branchResponse("bm25", "same", List.of(c, b))).when(service).search("bm25", "混合检索", 5);
 
 		var result = service.search("hybrid", "混合检索", 5);
 
 		assertThat(result.strategy()).isEqualTo("hybrid");
-		assertThat(result.hits())
-				.extracting(KnowledgeChunk::chunkId)
-				.containsExactly("b", "a", "c");
+		assertThat(result.hits()).extracting(KnowledgeChunk::chunkId).containsExactly("b", "a", "c");
 
 		assertThat(result.configuration().get("rrfRankConstant")).isEqualTo(60);
 		assertThat(result.configuration().get("candidateTopK")).isEqualTo(5);
-		assertThat(result.diagnostics())
-				.containsKeys("denseHits", "bm25Hits", "ranking", "fusionCostMs");
+		assertThat(result.diagnostics()).containsKeys("denseHits", "bm25Hits", "ranking", "fusionCostMs");
 		assertThat(result.costMs()).isGreaterThanOrEqualTo(4.0);
 
 		verify(service).search("dense", "混合检索", 5);
@@ -208,12 +200,10 @@ class RagBenchmarkServiceTest {
 	void shouldPropagateBranchFailureInsteadOfSilentFallback() {
 		service = spy(service);
 
-		doThrow(new BusinessException(503, "dense 未启用"))
-				.when(service).search("dense", "混合检索", 5);
+		doThrow(new BusinessException(503, "dense 未启用")).when(service).search("dense", "混合检索", 5);
 
-		assertThatThrownBy(() -> service.search("hybrid", "混合检索", 5))
-				.isInstanceOf(BusinessException.class)
-				.hasMessageContaining("dense 未启用");
+		assertThatThrownBy(() -> service.search("hybrid", "混合检索", 5)).isInstanceOf(BusinessException.class)
+			.hasMessageContaining("dense 未启用");
 
 		verify(service, never()).search(eq("bm25"), anyString(), anyInt());
 	}
@@ -222,20 +212,14 @@ class RagBenchmarkServiceTest {
 	void shouldRejectDifferentCorporaBetweenBranches() {
 		service = spy(service);
 
-		doReturn(branchResponse("dense", "corpus-a", List.of()))
-				.when(service).search("dense", "混合检索", 5);
-		doReturn(branchResponse("bm25", "corpus-b", List.of()))
-				.when(service).search("bm25", "混合检索", 5);
+		doReturn(branchResponse("dense", "corpus-a", List.of())).when(service).search("dense", "混合检索", 5);
+		doReturn(branchResponse("bm25", "corpus-b", List.of())).when(service).search("bm25", "混合检索", 5);
 
-		assertThatThrownBy(() -> service.search("hybrid", "混合检索", 5))
-				.isInstanceOf(BusinessException.class)
-				.hasMessageContaining("两路语料或范围不一致");
+		assertThatThrownBy(() -> service.search("hybrid", "混合检索", 5)).isInstanceOf(BusinessException.class)
+			.hasMessageContaining("两路语料或范围不一致");
 	}
 
-	private RagBenchmarkResponse branchResponse(
-			String strategy,
-			String corpusHash,
-			List<KnowledgeChunk> hits) {
+	private RagBenchmarkResponse branchResponse(String strategy, String corpusHash, List<KnowledgeChunk> hits) {
 
 		Map<String, Object> config = new LinkedHashMap<>();
 		config.put("knowledgeVersion", "fixture-v1");
@@ -245,15 +229,7 @@ class RagBenchmarkServiceTest {
 		config.put("sourceFilter", null);
 		config.put("sourceInventory", List.of(Map.of("source", "fixture.md")));
 
-		return new RagBenchmarkResponse(
-				"rag-benchmark-response-v1",
-				strategy,
-				"chunk",
-				"混合检索",
-				5,
-				5,
-				2.0,
-				hits,
+		return new RagBenchmarkResponse("rag-benchmark-response-v1", strategy, "chunk", "混合检索", 5, 5, 2.0, hits,
 				config);
 	}
 
