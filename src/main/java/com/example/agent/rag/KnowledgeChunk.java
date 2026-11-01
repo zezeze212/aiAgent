@@ -9,7 +9,7 @@ package com.example.agent.rag;
  * @param source 来源文档路径
  * @param title 文档标题，规则适配暂不提取
  * @param section 所属章节
- * @param score 向量相似度；规则检索没有相似度，使用 null
+ * @param score 检索策略原始分数：rule 可为空，dense 为相似度，BM25 为相关性分数，hybrid 为 RRF 分数；不同策略的分数不能直接比较
  * @param content 知识正文
  */
 public record KnowledgeChunk(String chunkId, String source, String title, String section, Double score,
