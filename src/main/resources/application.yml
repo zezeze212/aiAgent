@@ -65,6 +65,13 @@ agent:
       max-chunk-chars: 2000
       max-total-chars: 6000
 
+    # 正式 /agent/ask 的重排开关，与 Benchmark 开关独立。
+    rerank:
+      enabled: ${AI_AGENT_MAIN_RERANK_ENABLED:false}
+      api-key: ${SILICONFLOW_API_KEY:}
+      # 当前项目的初始等待策略，不代表整个 Agent 的总超时。
+      request-timeout-ms: ${AI_AGENT_MAIN_RERANK_TIMEOUT_MS:3000}
+
     benchmark:
       enabled: true
 

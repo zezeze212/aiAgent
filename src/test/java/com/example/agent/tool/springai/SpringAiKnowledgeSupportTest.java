@@ -3,11 +3,13 @@ package com.example.agent.tool.springai;
 import com.example.agent.rag.KnowledgeChunk;
 import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeRetriever;
+import com.example.agent.rag.rerank.AgentKnowledgeReranker;
 import com.example.agent.support.AgentJsonHelper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 
 import java.util.List;
 
@@ -31,7 +33,8 @@ class SpringAiKnowledgeSupportTest {
 
 		AgentJsonHelper helper = new AgentJsonHelper(objectMapper);
 
-		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000);
+		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000,
+				new DefaultListableBeanFactory().getBeanProvider(AgentKnowledgeReranker.class));
 
 		context = new SpringAiToolRunContext("test1234", "请解释唯一键冲突", 120_000L, objectMapper, helper);
 	}
@@ -193,7 +196,8 @@ class SpringAiKnowledgeSupportTest {
 
 	@Test
 	void shouldAllowPostToolRetrievalWhenPreDecisionChunksAreOversized() {
-		support = new SpringAiKnowledgeSupport(retriever, new AgentJsonHelper(objectMapper), objectMapper, 5, 5, 5, 20);
+		support = new SpringAiKnowledgeSupport(retriever, new AgentJsonHelper(objectMapper), objectMapper, 5, 5, 5, 20,
+				new DefaultListableBeanFactory().getBeanProvider(AgentKnowledgeReranker.class));
 
 		when(retriever.retrieve(context.getUserMessage(), 5)).thenReturn(result(budgetChunk("too-long", 6)));
 

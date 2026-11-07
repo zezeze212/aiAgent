@@ -34,6 +34,11 @@ public final class SiliconFlowReranker {
 
 	public static final String MODEL = "BAAI/bge-reranker-v2-m3";
 
+	/**
+	 * 本项目当前的重排查询长度限制，按 Java String.length() 计数。 不是在声明服务商或模型的统一硬限制。
+	 */
+	public static final int MAX_QUERY_CHARS = 2000;
+
 	private static final URI ENDPOINT = URI.create("https://api.siliconflow.cn/v1/rerank");
 
 	private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
@@ -58,25 +63,49 @@ public final class SiliconFlowReranker {
 
 	private final String apiKey;
 
+	private final Duration requestTimeout;
+
+	/**
+	 * 保留原入口：Benchmark 和现有调用继续使用 30 秒请求超时。
+	 */
 	public SiliconFlowReranker(ObjectMapper objectMapper, String apiKey) {
+		this(objectMapper, apiKey, REQUEST_TIMEOUT);
+	}
+
+	/**
+	 * 正式链路可以独立指定请求超时，不改变 Benchmark 的配置。
+	 */
+	public SiliconFlowReranker(ObjectMapper objectMapper, String apiKey, Duration requestTimeout) {
 		this(objectMapper, apiKey,
 				HttpClient.newBuilder()
 					.connectTimeout(CONNECT_TIMEOUT)
 					.followRedirects(HttpClient.Redirect.NEVER)
-					.build());
+					.build(),
+				requestTimeout);
 	}
 
-	/*
-	 * 包可见构造器：测试注入模拟 HTTP 客户端。 正常业务代码使用上面的公开构造器。
+	/**
+	 * 保留现有测试入口：注入模拟客户端，避免访问外部服务。
 	 */
 	SiliconFlowReranker(ObjectMapper objectMapper, String apiKey, HttpClient httpClient) {
+		this(objectMapper, apiKey, httpClient, REQUEST_TIMEOUT);
+	}
 
+	/**
+	 * 测试可以同时控制 HTTP 客户端和请求超时。
+	 */
+	SiliconFlowReranker(ObjectMapper objectMapper, String apiKey, HttpClient httpClient, Duration requestTimeout) {
 		this.objectMapper = Objects.requireNonNull(objectMapper);
 		this.httpClient = Objects.requireNonNull(httpClient);
+		this.requestTimeout = Objects.requireNonNull(requestTimeout);
 
+		if (requestTimeout.isZero() || requestTimeout.isNegative()) {
+			throw new IllegalArgumentException("重排请求超时必须大于 0");
+		}
 		if (apiKey == null || apiKey.isBlank()) {
 			throw new IllegalArgumentException("缺少 SILICONFLOW_API_KEY，无法调用重排服务");
 		}
+
 		this.apiKey = apiKey.trim();
 	}
 
@@ -106,7 +135,7 @@ public final class SiliconFlowReranker {
 		 */
 		body.put("documents", snapshot.stream().map(KnowledgeChunk::content).toList());
 
-		// 请求全部候选的分数，最终 TopK 由 Benchmark 层统一截取。
+		// 返回全部候选；Benchmark 截取 TopK，正式 Agent 再执行上下文预算筛选。
 		body.put("top_n", snapshot.size());
 		body.put("return_documents", false);
 		body.put("max_chunks_per_doc", MAX_CHUNKS_PER_DOC);
@@ -122,7 +151,7 @@ public final class SiliconFlowReranker {
 		}
 
 		HttpRequest request = HttpRequest.newBuilder(ENDPOINT)
-			.timeout(REQUEST_TIMEOUT)
+			.timeout(requestTimeout)
 			.header("Authorization", "Bearer " + apiKey)
 			.header("Content-Type", "application/json")
 			.header("Accept", "application/json")
@@ -165,7 +194,7 @@ public final class SiliconFlowReranker {
 		config.put("maxChunksPerDoc", MAX_CHUNKS_PER_DOC);
 		config.put("overlapTokens", OVERLAP_TOKENS);
 		config.put("connectTimeoutMs", CONNECT_TIMEOUT.toMillis());
-		config.put("requestTimeoutMs", REQUEST_TIMEOUT.toMillis());
+		config.put("requestTimeoutMs", requestTimeout.toMillis());
 		config.put("applicationRetries", 0);
 		config.put("tieBreak", "chunkId-asc");
 		config.put("timingScope", "request-build-http-decode-validate-sort");
@@ -174,8 +203,8 @@ public final class SiliconFlowReranker {
 
 	private void validateInput(String query, List<KnowledgeChunk> candidates) {
 
-		if (query == null || query.isBlank() || query.length() > 2000) {
-			throw new IllegalArgumentException("重排 query 长度须为 1～2000");
+		if (query == null || query.isBlank() || query.length() > MAX_QUERY_CHARS) {
+			throw new IllegalArgumentException("重排 query 长度须为 1～" + MAX_QUERY_CHARS);
 		}
 		if (candidates == null || candidates.size() > MAX_CANDIDATES) {
 			throw new IllegalArgumentException("重排候选数量须为 0～" + MAX_CANDIDATES);

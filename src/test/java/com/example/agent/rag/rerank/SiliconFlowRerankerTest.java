@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -196,6 +197,30 @@ class SiliconFlowRerankerTest {
 
 	private static KnowledgeChunk chunk(String id, String content) {
 		return new KnowledgeChunk(id, "docs/knowledge/sql/unknown-column.md", "字段不存在", "常见原因", 123.0, content);
+	}
+
+	@Test
+	void shouldUseInstanceRequestTimeoutAndKeepDefaultUnchanged() throws Exception {
+		SiliconFlowReranker configured = new SiliconFlowReranker(mapper, "test-key", http, Duration.ofMillis(3000));
+
+		reply(200, """
+				{
+				  "results": [
+				    {"index": 0, "relevance_score": 0.9}
+				  ]
+				}
+				""");
+
+		configured.rerank("字段不存在", List.of(chunk("c1", "测试正文")));
+
+		ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
+		verify(http).send(request.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+
+		assertThat(request.getValue().timeout()).contains(Duration.ofMillis(3000));
+		assertThat(configured.configuration()).containsEntry("requestTimeoutMs", 3000L);
+
+		// 旧构造入口仍保持 Benchmark 原来的 30 秒配置。
+		assertThat(reranker.configuration()).containsEntry("requestTimeoutMs", 30000L);
 	}
 
 }
