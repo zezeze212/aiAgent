@@ -3,8 +3,11 @@ package com.example.agent.rag;
 import com.example.agent.config.KnowledgeRetrieverConfiguration;
 import com.example.agent.dto.VectorKnowledgeSearchHit;
 import com.example.agent.dto.VectorKnowledgeSearchResponse;
+import com.example.agent.rag.vector.KnowledgeManifestLoader;
+import com.example.agent.rag.vector.MarkdownSectionChunker;
 import com.example.agent.rag.vector.VectorKnowledgeRetriever;
 import com.example.agent.rag.vector.VectorKnowledgeService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -22,7 +25,9 @@ class KnowledgeRetrieverConfigurationTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(KnowledgeRetrieverConfiguration.class)
-		.withBean(SimpleRagRetriever.class, SimpleRagRetriever::new);
+		.withBean(SimpleRagRetriever.class, SimpleRagRetriever::new)
+		.withBean(KnowledgeManifestLoader.class, () -> new KnowledgeManifestLoader(new ObjectMapper()))
+		.withBean(MarkdownSectionChunker.class, MarkdownSectionChunker::new);
 
 	@Test
 	void shouldUseRuleByDefaultWithoutVectorService() {
@@ -89,7 +94,69 @@ class KnowledgeRetrieverConfigurationTest {
 		contextRunner.withPropertyValues("agent.rag.mode=vectro").run(context -> {
 			assertThat(context).hasFailed();
 			assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class)
-				.hasStackTraceContaining("只支持 rule 或 vector");
+				.hasStackTraceContaining("只支持 rule、vector、bm25 或 hybrid");
+		});
+	}
+
+	@Test
+	void shouldSelectBm25WithoutVectorOrBenchmarkService() {
+		contextRunner.withPropertyValues("agent.rag.mode=bm25", "agent.rag.benchmark.enabled=false").run(context -> {
+			assertThat(context).hasNotFailed();
+			assertThat(context).hasSingleBean(KnowledgeRetriever.class);
+			assertThat(context).doesNotHaveBean(VectorKnowledgeService.class);
+			assertThat(context).doesNotHaveBean(RagBenchmarkService.class);
+
+			KnowledgeRetriever retriever = context.getBean(KnowledgeRetriever.class);
+			assertThat(retriever).isInstanceOf(Bm25KnowledgeRetriever.class);
+
+			var result = retriever.retrieve("Unknown column", 5);
+			assertThat(result.retriever()).isEqualTo("bm25");
+			assertThat(result.chunks()).isNotEmpty();
+		});
+	}
+
+	@Test
+	void shouldSelectHybridWithoutBenchmarkService() {
+		VectorKnowledgeService service = mock(VectorKnowledgeService.class);
+
+		// Hybrid 要求向量检索与 BM25 使用相同的知识范围。
+		when(service.searchPolicy()).thenReturn(new VectorKnowledgeService.SearchPolicy(0.0, "mysql", "public"));
+
+		// 模拟向量检索正常完成但没有命中，融合结果仍可来自 BM25。
+		// 这是正常空结果，不是向量服务调用失败。
+		when(service.search("Unknown column", 5))
+			.thenReturn(new VectorKnowledgeSearchResponse("Unknown column", 5, 0L, List.of()));
+
+		contextRunner.withPropertyValues("agent.rag.mode=hybrid",
+				// 即使实例来自 mock，也需要满足服务类上的条件注解。
+				"agent.rag.vector.enabled=true", "agent.rag.benchmark.enabled=false")
+			.withBean(VectorKnowledgeService.class, () -> service)
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				assertThat(context).hasSingleBean(KnowledgeRetriever.class);
+
+				// 明确确认容器使用的是本测试提供的 mock。
+				assertThat(context.getBean(VectorKnowledgeService.class)).isSameAs(service);
+				assertThat(context).doesNotHaveBean(RagBenchmarkService.class);
+
+				KnowledgeRetriever retriever = context.getBean(KnowledgeRetriever.class);
+				assertThat(retriever).isInstanceOf(HybridKnowledgeRetriever.class);
+
+				KnowledgeRetrievalResult result = retriever.retrieve("Unknown column", 5);
+
+				assertThat(result.retriever()).isEqualTo("hybrid");
+				assertThat(result.chunks()).isNotEmpty();
+				verify(service).search("Unknown column", 5);
+			});
+	}
+
+	@Test
+	void shouldFailWhenHybridVectorServiceIsMissing() {
+		contextRunner.withPropertyValues("agent.rag.mode=hybrid").run(context -> {
+			assertThat(context).hasFailed();
+			assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalStateException.class)
+				.hasStackTraceContaining("agent.rag.mode=hybrid")
+				.hasStackTraceContaining("agent.rag.vector.enabled=true");
 		});
 	}
 

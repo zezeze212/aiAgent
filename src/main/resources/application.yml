@@ -57,7 +57,9 @@ agent:
     allow-side-effect-tools: false
 
   rag:
-    mode: vector
+    # 正式 /agent/ask：rule、vector、bm25、hybrid。
+    # 默认继续使用 vector；切换后重启应用生效。
+    mode: ${AI_AGENT_RAG_MODE:vector}
     top-k: 5
 
     context:

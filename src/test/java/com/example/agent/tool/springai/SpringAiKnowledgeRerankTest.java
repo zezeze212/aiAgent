@@ -123,12 +123,17 @@ class SpringAiKnowledgeRerankTest {
 		KnowledgeRetrievalResult first = support.retrievePostToolKnowledge(context, "第一次工具结果");
 		KnowledgeRetrievalResult second = support.retrievePostToolKnowledge(context, "第二次工具结果");
 
+		// 返回的片段列表承担排序语义，必须保留重排后的顺序。
 		assertThat(first.chunks()).extracting(KnowledgeChunk::chunkId).containsExactly("c2", "c1");
+
 		assertThat(first.retriever()).isEqualTo("vector");
 
-		// 重排成功和回退使用相同的去重身份，不应重复注入相同片段。
+		// 第二次候选已经使用过，不应再次注入上下文。
 		assertThat(second.chunks()).isEmpty();
-		assertThat(context.getPreparedKnowledgeChunkIds()).containsExactly("c2", "c1");
+
+		// 引用登记集合只表达“哪些 ID 已准备”，不承诺遍历顺序。
+		// 同时检查没有缺失 ID，也没有额外 ID。
+		assertThat(context.getPreparedKnowledgeChunkIds()).containsExactlyInAnyOrder("c1", "c2");
 	}
 
 	@Test
