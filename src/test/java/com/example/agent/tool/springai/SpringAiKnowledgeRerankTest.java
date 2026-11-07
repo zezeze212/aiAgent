@@ -7,6 +7,7 @@ import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeRetriever;
 import com.example.agent.rag.rerank.AgentKnowledgeReranker;
 import com.example.agent.rag.rerank.SiliconFlowReranker;
+import com.example.agent.rag.rewrite.AgentQueryRewriter;
 import com.example.agent.support.AgentJsonHelper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -205,7 +206,8 @@ class SpringAiKnowledgeRerankTest {
 		}
 
 		return new SpringAiKnowledgeSupport(retriever, helper, mapper, 5, maxChunks, 2000, 6000,
-				factory.getBeanProvider(AgentKnowledgeReranker.class));
+				factory.getBeanProvider(AgentKnowledgeReranker.class),
+				factory.getBeanProvider(AgentQueryRewriter.class));
 	}
 
 	private SpringAiToolRunContext context(String message) {

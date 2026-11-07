@@ -6,6 +6,7 @@ import com.example.agent.rag.KnowledgeChunk;
 import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.rag.KnowledgeRetriever;
 import com.example.agent.rag.rerank.AgentKnowledgeReranker;
+import com.example.agent.rag.rewrite.AgentQueryRewriter;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.springai.SpringAiToolRunContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,12 +62,15 @@ public class SpringAiKnowledgeSupport {
 
 	private final ObjectProvider<AgentKnowledgeReranker> rerankerProvider;
 
+	private final ObjectProvider<AgentQueryRewriter> queryRewriterProvider;
+
 	public SpringAiKnowledgeSupport(KnowledgeRetriever knowledgeRetriever, AgentJsonHelper agentJsonHelper,
 			ObjectMapper objectMapper, @Value("${agent.rag.top-k:5}") int topK,
 			@Value("${agent.rag.context.max-chunks:5}") int maxChunks,
 			@Value("${agent.rag.context.max-chunk-chars:2000}") int maxChunkChars,
 			@Value("${agent.rag.context.max-total-chars:6000}") int maxTotalChars,
-			ObjectProvider<AgentKnowledgeReranker> rerankerProvider) {
+			ObjectProvider<AgentKnowledgeReranker> rerankerProvider,
+			ObjectProvider<AgentQueryRewriter> queryRewriterProvider) {
 
 		if (topK < 1 || topK > 20) {
 			throw new IllegalArgumentException("agent.rag.top-k 必须在 1～20 之间");
@@ -84,6 +88,7 @@ public class SpringAiKnowledgeSupport {
 		this.maxChunkChars = maxChunkChars;
 		this.maxTotalChars = maxTotalChars;
 		this.rerankerProvider = rerankerProvider;
+		this.queryRewriterProvider = queryRewriterProvider;
 	}
 
 	/**
@@ -209,27 +214,63 @@ public class SpringAiKnowledgeSupport {
 	}
 
 	/**
-	 * 先记录原始召回，再按配置执行重排。
+	 * 仅改写首次检索查询。
 	 *
-	 * 返回值随后进入现有 selectContext()，因此重排发生在预算筛选之前。
+	 * 原始问题仍保存在 runContext 中，不被改写结果覆盖。
+	 */
+	private String rewriteRetrievalQuery(SpringAiToolRunContext runContext, String originalQuery,
+			KnowledgeRetrievalPhase phase) {
+
+		if (phase != KnowledgeRetrievalPhase.PRE_DECISION) {
+			return originalQuery;
+		}
+
+		// 已能确定应直接澄清的问题，不再为查询改写增加一次模型调用。
+		if (SpringAiRequestBoundaryPolicy.findClarificationAnswer(originalQuery).isPresent()) {
+			return originalQuery;
+		}
+
+		AgentQueryRewriter rewriter = queryRewriterProvider.getIfAvailable();
+
+		if (rewriter == null) {
+			return originalQuery;
+		}
+
+		AgentQueryRewriter.Outcome outcome = rewriter.rewrite(originalQuery);
+		boolean fallback = "FALLBACK".equals(outcome.trace().status());
+
+		runContext.addStep(new AgentTraceStep("KNOWLEDGE_QUERY_REWRITE",
+				phase.name() + "：查询改写状态 " + outcome.trace().status(), !fallback, outcome.costMs(), originalQuery,
+				agentJsonHelper.serializeForStorage(outcome.trace()), fallback ? "查询改写未采用，已使用原查询" : null));
+
+		return outcome.query();
+	}
+
+	/**
+	 * 首次检索前可选改写；检索成功后可选重排。
+	 *
+	 * 检索使用 effectiveQuery，重排仍使用本阶段原始 query。 返回结果继续进入现有上下文预算筛选。
 	 */
 	private KnowledgeRetrievalResult retrieveKnowledge(SpringAiToolRunContext runContext, String query,
 			KnowledgeRetrievalPhase phase) {
 
+		String effectiveQuery = rewriteRetrievalQuery(runContext, query, phase);
+
+		// 检索计时从改写完成后开始，避免把改写耗时重复算入检索耗时。
 		long startTime = System.nanoTime();
 		KnowledgeRetrievalResult result;
 
 		try {
-			result = knowledgeRetriever.retrieve(query, topK);
+			result = knowledgeRetriever.retrieve(effectiveQuery, topK);
 
 			String description = result.matched() ? phase.name() + "：检索到知识候选" : phase.name() + "：未检索到知识候选";
 
-			runContext.addStep(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", description, true, elapsedMs(startTime), query,
-					agentJsonHelper.serializeForStorage(result), null));
+			runContext.addStep(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", description, true, elapsedMs(startTime),
+					effectiveQuery, agentJsonHelper.serializeForStorage(result), null));
 		}
 		catch (Exception e) {
 			runContext.addStep(new AgentTraceStep("KNOWLEDGE_RETRIEVAL", phase.name() + "：知识检索失败，继续执行 Agent", false,
-					elapsedMs(startTime), query, null, "知识检索失败：" + e.getMessage()));
+					elapsedMs(startTime), effectiveQuery, null, "知识检索失败：" + e.getMessage()));
 
 			log.warn("知识检索失败，traceId={}, phase={}", runContext.getTraceId(), phase, e);
 
@@ -238,13 +279,12 @@ public class SpringAiKnowledgeSupport {
 
 		AgentKnowledgeReranker reranker = rerankerProvider.getIfAvailable();
 
-		// 开关关闭：沿用现有候选，不创建额外远程调用。
 		if (reranker == null) {
 			return result;
 		}
 
 		/*
-		 * 必须放在上面的检索 try/catch 之外。 重排失败不能被误记为“召回失败”，更不能丢失已经召回的候选。
+		 * 重排仍判断候选对原问题是否相关。 改写只负责帮助召回，不替代原问题成为最终相关性目标。
 		 */
 		AgentKnowledgeReranker.Outcome outcome = reranker.rerank(query, result);
 		boolean fallback = "FALLBACK".equals(outcome.trace().status());

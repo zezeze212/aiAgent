@@ -74,6 +74,13 @@ agent:
       # 当前项目的初始等待策略，不代表整个 Agent 的总超时。
       request-timeout-ms: ${AI_AGENT_MAIN_RERANK_TIMEOUT_MS:3000}
 
+    # 正式 Agent 首次检索的查询改写；默认关闭。
+    query-rewrite:
+      enabled: ${AI_AGENT_QUERY_REWRITE_ENABLED:false}
+
+      # 改写客户端的 HTTP 读取超时，不是整个 Agent 的总超时。
+      read-timeout-ms: ${AI_AGENT_QUERY_REWRITE_READ_TIMEOUT_MS:5000}
+
     benchmark:
       enabled: true
 
