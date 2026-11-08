@@ -90,6 +90,9 @@ agent:
       # 从启动 Java 进程的环境读取，不在配置文件中写真实 Key。
       rerank-api-key: ${SILICONFLOW_API_KEY:}
 
+      # 查询改写成对比较接口；要求正式 Hybrid 和正式改写器已启用。
+      rewrite-enabled: ${AI_AGENT_QUERY_REWRITE_BENCHMARK_ENABLED:false}
+
     vector:
       enabled: true
       # 本单元先保留宽松对照；不是已经校准好的拒答阈值。

@@ -233,4 +233,40 @@ class RagBenchmarkServiceTest {
 				config);
 	}
 
+	@Test
+	void shouldDescribeFormalHybridWithoutExecutingRetrieval() throws Exception {
+		Files.writeString(stateDirectory.resolve("ai_agent_knowledge_managed_v1.json"), "{}");
+
+		Map<String, Object> config = service.formalHybridConfiguration(5);
+
+		assertThat(config.get("retriever")).isEqualTo("hybrid");
+		assertThat(config.get("candidateTopK")).isEqualTo(5);
+		assertThat(config.get("indexStatePresent")).isEqualTo(true);
+		assertThat(config.get("indexStateSha256")).asString().hasSize(64);
+		assertThat(config.get("corpusSha256")).asString().hasSize(64);
+
+		// 读取配置可以访问 searchPolicy，但不能额外执行召回。
+		verify(vector, never()).search(anyString(), anyInt());
+		verify(rule, never()).retrieve(anyString());
+	}
+
+	@Test
+	void shouldRejectMissingStateForFormalHybridComparison() {
+		assertThatThrownBy(() -> service.formalHybridConfiguration(5)).isInstanceOf(BusinessException.class)
+			.hasMessageContaining("缺少受管索引状态文件");
+
+		verify(vector, never()).search(anyString(), anyInt());
+	}
+
+	@Test
+	void shouldRejectPendingStateForFormalHybridComparison() throws Exception {
+		Files.writeString(stateDirectory.resolve("ai_agent_knowledge_managed_v1.json"), "{}");
+		Files.writeString(stateDirectory.resolve("ai_agent_knowledge_managed_v1.json.pending.json"), "{}");
+
+		assertThatThrownBy(() -> service.formalHybridConfiguration(5)).isInstanceOf(BusinessException.class)
+			.hasMessageContaining("pending");
+
+		verify(vector, never()).search(anyString(), anyInt());
+	}
+
 }

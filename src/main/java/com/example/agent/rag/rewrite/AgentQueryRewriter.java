@@ -17,6 +17,7 @@ import org.springframework.ai.retry.TransientAiException;
 import org.springframework.web.client.RestClientException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -76,6 +77,17 @@ public final class AgentQueryRewriter {
 			.copy()
 			.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
 			.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+	}
+
+	/**
+	 * 返回可以公开记录的改写配置。
+	 *
+	 * 不包含 API Key；模型名称是服务商别名，不代表已验证底层权重版本。 Prompt 内容发生变化时，应同步更新 PROMPT_VERSION。
+	 */
+	public Map<String, Object> configuration() {
+		return Map.of("model", modelName, "modelIdentity", "PROVIDER_ALIAS_ONLY", "promptVersion", PROMPT_VERSION,
+				"maxInputChars", MAX_INPUT_CHARS, "maxQueryChars", MAX_QUERY_CHARS, "maxResponseChars",
+				MAX_RESPONSE_CHARS, "protectedTokenPattern", PROTECTED_TOKEN.pattern());
 	}
 
 	public Outcome rewrite(String originalQuery) {

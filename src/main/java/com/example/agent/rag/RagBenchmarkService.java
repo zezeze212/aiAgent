@@ -70,6 +70,74 @@ public class RagBenchmarkService {
 		this.stateDirectory = Path.of(stateDirectory);
 	}
 
+	/**
+	 * 为正式 Hybrid 的实验读取配置与本地指纹。
+	 *
+	 * 本方法不执行向量检索、不建立 Benchmark BM25 索引， 也不调用 search()。实际召回由正式 KnowledgeRetriever 完成。
+	 */
+	public Map<String, Object> formalHybridConfiguration(int topK) {
+		if (topK < 1 || topK > 20) {
+			throw new BusinessException(400, "topK 须为 1～20");
+		}
+
+		VectorKnowledgeService vector = vectorProvider.getIfAvailable();
+
+		if (vector == null) {
+			throw new BusinessException(503, "正式 Hybrid 评测要求启用向量服务");
+		}
+
+		Map<String, Object> config = corpusConfiguration(loader.loadManifest());
+		VectorKnowledgeService.SearchPolicy policy = vector.searchPolicy();
+
+		if (!policy.category().equals(config.get("category"))
+				|| !policy.visibility().equals(config.get("visibility"))) {
+			throw new BusinessException(409, "正式 Hybrid 过滤范围与比较语料不一致");
+		}
+
+		if (!collection.matches("[A-Za-z0-9_-]+") || embeddingModel.isBlank() || embeddingRevision.isBlank()) {
+			throw new BusinessException(409, "缺少集合或 Embedding 版本配置");
+		}
+
+		Path state = stateDirectory.resolve(collection + ".json");
+		Path pending = state.resolveSibling(state.getFileName() + ".pending.json");
+
+		if (Files.exists(pending)) {
+			throw new BusinessException(409, "索引存在 pending 恢复记录，请先完成同步");
+		}
+
+		String indexStateHash = stateHash(state);
+
+		if (indexStateHash == null) {
+			throw new BusinessException(409, "缺少受管索引状态文件，不能确认比较基线");
+		}
+
+		config.put("retriever", "hybrid");
+		config.put("retrieverImplementation", HybridKnowledgeRetriever.class.getName());
+		config.put("candidateTopK", topK);
+		config.put("outputTopK", topK);
+
+		config.put("similarityThreshold", policy.similarityThreshold());
+		config.put("configuredCollection", collection);
+		config.put("configuredEmbeddingModel", embeddingModel);
+		config.put("configuredEmbeddingRevision", embeddingRevision);
+		config.put("indexStatePresent", true);
+		config.put("indexStateSha256", indexStateHash);
+		config.put("indexVerification", "LOCAL_STATE_ONLY_NOT_LIVE_QDRANT_VERIFICATION");
+
+		config.put("fusion", Map.of("engine", "rrf", "rankConstant", RrfKnowledgeFusion.RANK_CONSTANT, "weights",
+				List.of(1, 1), "tieBreak", "chunkId-asc"));
+
+		config.put("bm25",
+				Map.of("engine", "lucene", "luceneVersion", Version.LATEST.toString(), "analyzer",
+						"SmartChineseAnalyzer", "queryOperator", "SHOULD", "k1", Bm25KnowledgeIndex.K1, "b",
+						Bm25KnowledgeIndex.B));
+
+		/*
+		 * 现有 config 中 sourceFilter 可以为 null。 因此这里不能使用不允许 null 值的 Map.copyOf()。
+		 */
+		return Collections.unmodifiableMap(new LinkedHashMap<>(config));
+	}
+
 	public RagBenchmarkResponse search(String strategy, String query, int topK) {
 		String selected = strategy == null ? "" : strategy.trim().toLowerCase(Locale.ROOT);
 
