@@ -2,6 +2,7 @@ package com.example.agent.tool.springai;
 
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.KnowledgeCitationReport;
 import com.example.agent.dto.ToolExecutionResult;
 import com.example.agent.rag.KnowledgeChunk;
 import com.example.agent.rag.KnowledgeRetrievalResult;
@@ -45,9 +46,16 @@ public class SpringAiToolRunContext {
 	private final Set<String> injectedKnowledgeKeys = new HashSet<>();
 
 	/**
-	 * 本次请求已选入知识上下文的 Chunk ID。 用于最终回答的引用归属检查。
+	 * 本次请求已经选入的知识片段快照。
+	 *
+	 * key 同时作为引用允许集合；value 用于回答完成后关联来源和正文。 不再额外维护一份 ID 集合，避免两份状态不一致。
 	 */
-	private final Set<String> preparedKnowledgeChunkIds = new LinkedHashSet<>();
+	private final Map<String, KnowledgeChunk> preparedKnowledgeChunks = new LinkedHashMap<>();
+
+	/**
+	 * 只有正常模型答案执行审计后，才替换此默认结果。
+	 */
+	private KnowledgeCitationReport knowledgeCitations = KnowledgeCitationReport.notChecked();
 
 	/**
 	 * 本次请求已准备的知识正文长度与片段数。 多次 POST_TOOL 共用这份预算。
@@ -204,13 +212,11 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 构造与旧 Agent 链路可比较的响应。
+	 * 构造正式响应，并附带已经完成的引用审计结果。
 	 */
 	public synchronized AgentAskResponse buildResponse(String answer, long agentCostMs) {
-
 		for (AgentTraceStep step : steps) {
 			step.setInputView(agentJsonHelper.parseJsonIfPossible(step.getInput()));
-
 			step.setOutputView(agentJsonHelper.parseJsonIfPossible(step.getOutput()));
 		}
 
@@ -222,7 +228,7 @@ public class SpringAiToolRunContext {
 		Long toolCostMs = usedTool ? totalToolCostMs : null;
 
 		return new AgentAskResponse(answer, usedTool, toolName, toolResult, toolCostMs, agentCostMs, traceId, null,
-				null, new ArrayList<>(steps));
+				null, new ArrayList<>(steps), knowledgeCitations);
 	}
 
 	public synchronized boolean hasAbortAnswer() {
@@ -479,9 +485,11 @@ public class SpringAiToolRunContext {
 				continue;
 			}
 
-			// 统一提交本片段的选入状态，避免被排除的片段占用配额或引用 ID。
 			injectedKnowledgeKeys.add(key);
-			preparedKnowledgeChunkIds.add(chunk.chunkId());
+
+			// 同一个 ID 保留首次选入的片段快照，不在回答阶段重新检索。
+			preparedKnowledgeChunks.putIfAbsent(chunk.chunkId(), chunk);
+
 			selected.add(chunk);
 
 			knowledgeContextChunks++;
@@ -503,12 +511,38 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 返回副本，避免外部修改本次请求的引用允许集合。
-	 *
-	 * 这里记录的是已准备的上下文，不单独证明模型已接收。
+	 * 从实际选入片段中派生引用允许集合，返回不可变副本。
 	 */
 	public synchronized Set<String> getPreparedKnowledgeChunkIds() {
-		return Set.copyOf(preparedKnowledgeChunkIds);
+		return Set.copyOf(preparedKnowledgeChunks.keySet());
+	}
+
+	/**
+	 * 检查最终回答的引用 ID，并关联本次选入的片段快照。
+	 *
+	 * 顺序沿用回答中 ID 的首次出现顺序。 未选入的 ID 只作为 unknownIds 返回，不补造来源。
+	 */
+	public synchronized KnowledgeCitationReport auditKnowledgeCitations(String answer) {
+		KnowledgeCitationChecker.CheckResult check = KnowledgeCitationChecker.check(answer,
+				preparedKnowledgeChunks.keySet());
+
+		List<KnowledgeCitationReport.Citation> citations = new ArrayList<>();
+
+		for (String id : check.citedIds()) {
+			KnowledgeChunk chunk = preparedKnowledgeChunks.get(id);
+
+			if (chunk == null) {
+				continue;
+			}
+
+			citations.add(new KnowledgeCitationReport.Citation(chunk.chunkId(), chunk.source(), chunk.title(),
+					chunk.section(), chunk.content(), false));
+		}
+
+		knowledgeCitations = new KnowledgeCitationReport(check.status(), check.citedIds(), check.unknownIds(),
+				citations);
+
+		return knowledgeCitations;
 	}
 
 	/**

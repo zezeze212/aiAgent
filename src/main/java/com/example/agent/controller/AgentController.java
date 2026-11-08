@@ -29,23 +29,16 @@ public class AgentController {
 
 	@PostMapping("/ask")
 	public Result<AgentAskResponse> ask(@RequestBody AgentAskRequest request) {
-
 		if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-
 			throw new BusinessException(400, "message 不能为空");
 		}
 
-		/*
-		 * /agent/ask 是正式 Agent 入口。
-		 *
-		 * 当前已经切换为 Spring AI 原生 Tool Calling 链路， 统一执行知识检索、工具治理、Trace 记录和运行日志保存。
-		 */
 		AgentAskResponse response = springAiToolChatService.chat(request.getMessage());
 
 		/*
-		 * Service 已经完成真实计算和数据库保存。 这里位于 HTTP 输出边界，只治理对外返回的 Trace。
+		 * Service 已完成模型调用和日志保存。 此处只治理 HTTP 展示数据，不修改运行时证据和最终 answer。
 		 */
-		agentTraceSanitizer.sanitize(response.getSteps());
+		agentTraceSanitizer.sanitizeResponse(response);
 
 		return Result.success(response);
 	}

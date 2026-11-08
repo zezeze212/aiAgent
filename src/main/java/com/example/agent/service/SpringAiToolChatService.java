@@ -3,6 +3,7 @@ package com.example.agent.service;
 import com.example.agent.config.AgentProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.KnowledgeCitationReport;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.springai.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -202,23 +203,24 @@ public class SpringAiToolChatService {
 	}
 
 	/**
-	 * 审计模型答案中的知识引用。 不修改答案，不发起额外模型调用。
+	 * 解析正常模型答案的知识引用，并记录出处。
+	 *
+	 * 不修改答案，不发起模型调用，也不重新检索知识库。
 	 */
 	private void auditKnowledgeCitations(SpringAiToolRunContext runContext, String answer) {
 
-		KnowledgeCitationChecker.CheckResult result = KnowledgeCitationChecker.check(answer,
-				runContext.getPreparedKnowledgeChunkIds());
+		KnowledgeCitationReport report = runContext.auditKnowledgeCitations(answer);
 
-		boolean valid = !"INVALID_IDS".equals(result.status());
+		boolean valid = !"INVALID_IDS".equals(report.status());
 
-		String description = switch (result.status()) {
+		String description = switch (report.status()) {
 			case "NO_CITATIONS" -> "回答未包含约定格式的知识引用，未验证引用归属";
-			case "VALID_IDS" -> "引用 ID 均属于本次准备的知识片段，未验证语义支持";
-			default -> "回答包含未提供的知识引用 ID";
+			case "VALID_IDS" -> "引用 ID 均属于本次准备的知识片段，已关联出处，未验证语义支持";
+			default -> "回答包含未提供的知识引用 ID，合法引用已关联出处";
 		};
 
 		runContext.addStep(new AgentTraceStep("KNOWLEDGE_CITATION_CHECK", description, valid, 0L, null,
-				agentJsonHelper.serializeForStorage(result), valid ? null : "存在不属于本次知识上下文的引用 ID"));
+				agentJsonHelper.serializeForStorage(report), valid ? null : "存在不属于本次知识上下文的引用 ID"));
 	}
 
 	private ToolCallback getDiagnosticToolCallback(String toolName) {

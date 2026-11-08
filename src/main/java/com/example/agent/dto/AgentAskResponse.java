@@ -49,4 +49,9 @@ public class AgentAskResponse {
 	 */
 	private List<AgentTraceStep> steps;
 
+	/**
+	 * 最终回答实际引用的知识片段及 ID 检查结果。 默认未检查，不能把调用失败等情况误标记为没有引用。
+	 */
+	private KnowledgeCitationReport knowledgeCitations = KnowledgeCitationReport.notChecked();
+
 }

@@ -1,15 +1,18 @@
 package com.example.agent.support;
 
+import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
+import com.example.agent.dto.KnowledgeCitationReport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Agent Trace 对外展示前的统一治理组件。
+ * Agent Trace 与知识引用对外展示前的治理组件。
  *
- * 只处理 Trace 中的 input / output / errorMessage， 不修改 Agent 真正参与模型调用和工具执行的数据。
+ * 不修改真正参与模型调用和工具执行的运行时证据。
  */
 @Component
 @RequiredArgsConstructor
@@ -52,6 +55,48 @@ public class AgentTraceSanitizer {
 		step.setInputView(agentJsonHelper.parseJsonIfPossible(sanitizedInput));
 
 		step.setOutputView(agentJsonHelper.parseJsonIfPossible(sanitizedOutput));
+	}
+
+	/**
+	 * 正式 HTTP 响应出口使用此入口，统一处理 Trace 和结构化知识引用。
+	 */
+	public void sanitizeResponse(AgentAskResponse response) {
+		if (response == null) {
+			return;
+		}
+
+		sanitize(response.getSteps());
+
+		response.setKnowledgeCitations(sanitizeKnowledgeCitations(response.getKnowledgeCitations()));
+	}
+
+	private KnowledgeCitationReport sanitizeKnowledgeCitations(KnowledgeCitationReport report) {
+
+		if (report == null) {
+			return KnowledgeCitationReport.notChecked();
+		}
+
+		List<KnowledgeCitationReport.Citation> citations = report.citations()
+			.stream()
+			.map(this::sanitizeCitation)
+			.toList();
+
+		// 引用 ID 保持原样用于关联；来源和正文等展示字段使用处理后的副本。
+		return new KnowledgeCitationReport(report.status(), report.citedIds(), report.unknownIds(), citations);
+	}
+
+	private KnowledgeCitationReport.Citation sanitizeCitation(KnowledgeCitationReport.Citation citation) {
+
+		String source = traceContentSanitizer.sanitize(citation.source());
+		String title = traceContentSanitizer.sanitize(citation.title());
+		String section = traceContentSanitizer.sanitize(citation.section());
+		String content = traceContentSanitizer.sanitize(citation.content());
+
+		boolean modified = citation.displayModified() || !Objects.equals(source, citation.source())
+				|| !Objects.equals(title, citation.title()) || !Objects.equals(section, citation.section())
+				|| !Objects.equals(content, citation.content());
+
+		return new KnowledgeCitationReport.Citation(citation.chunkId(), source, title, section, content, modified);
 	}
 
 }
