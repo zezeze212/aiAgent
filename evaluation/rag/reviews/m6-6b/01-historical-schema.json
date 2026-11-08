@@ -1,0 +1,335 @@
+﻿{
+    "schemaVersion":  "eval-run-detail-v1",
+    "runId":  "20260827-191440-deepseek-v4-flash-eval-v1-seed-r2",
+    "sequence":  4,
+    "caseId":  "schema-run-log-004",
+    "category":  "TABLE_SCHEMA",
+    "tags":  [
+                 "tool",
+                 "get-table-schema",
+                 "rag-miss"
+             ],
+    "repetition":  1,
+    "request":  {
+                    "message":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。"
+                },
+    "executionSuccess":  true,
+    "timing":  {
+                   "clientCostMs":  3655.279
+               },
+    "transport":  {
+                      "success":  true,
+                      "httpStatus":  200,
+                      "errorType":  null,
+                      "errorMessage":  null
+                  },
+    "response":  {
+                     "parsed":  true,
+                     "body":  {
+                                  "code":  200,
+                                  "message":  "success",
+                                  "data":  {
+                                               "answer":  "根据 `agent_run_log` 表的真实字段结构，可以明确回答你的问题。\n\n## 直接原因\n\n- **追踪 ID** 保存在 **`trace_id`** 字段\n- **用户问题** 保存在 **`user_message`** 字段\n\n## 证据\n\n来自 `agent_run_log` 表的真实结构：\n\n| 字段 | 类型 | 可空 | 注释 | 位置 |\n|------|------|------|------|------|\n| `trace_id` | varchar(64) | 否 | Agent 运行追踪 ID | 第 2 列 |\n| `user_message` | text | 否 | 用户原始问题 | 第 3 列 |\n\n## 补充说明\n\n该表还包含其他关键字段，如果后续排查需要可一并参考：\n\n- `answer`（mediumtext）：Agent 最终回答\n- `used_tool`（tinyint）：是否调用工具（0-否，1-是）\n- `tool_name` / `tool_result`：最后一次调用的工具名称及结果\n- `success`（tinyint）：是否成功（0-失败，1-成功）\n- `error_message`（text）：失败原因\n- `created_time`（datetime(3)）：创建时间，默认 `CURRENT_TIMESTAMP(3)`\n\n如果你需要结合具体 SQL 或报错日志进一步诊断，也可以把日志和表名提供给我。",
+                                               "usedTool":  true,
+                                               "toolName":  "getTableSchema",
+                                               "toolResult":  [
+                                                                  {
+                                                                      "columnName":  "id",
+                                                                      "columnType":  "bigint unsigned",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "主键",
+                                                                      "ordinalPosition":  1
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "trace_id",
+                                                                      "columnType":  "varchar(64)",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "Agent 运行追踪 ID",
+                                                                      "ordinalPosition":  2
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "user_message",
+                                                                      "columnType":  "text",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "用户原始问题",
+                                                                      "ordinalPosition":  3
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "answer",
+                                                                      "columnType":  "mediumtext",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "Agent 最终回答",
+                                                                      "ordinalPosition":  4
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "used_tool",
+                                                                      "columnType":  "tinyint unsigned",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "是否调用工具：0-否，1-是",
+                                                                      "ordinalPosition":  5
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "tool_name",
+                                                                      "columnType":  "varchar(128)",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "最后一次调用的工具名称",
+                                                                      "ordinalPosition":  6
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "tool_result",
+                                                                      "columnType":  "mediumtext",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "最后一次工具调用结果",
+                                                                      "ordinalPosition":  7
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "decision_cost_ms",
+                                                                      "columnType":  "bigint unsigned",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "AI 决策总耗时，单位毫秒",
+                                                                      "ordinalPosition":  8
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "tool_cost_ms",
+                                                                      "columnType":  "bigint unsigned",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "工具调用总耗时，单位毫秒",
+                                                                      "ordinalPosition":  9
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "summary_cost_ms",
+                                                                      "columnType":  "bigint unsigned",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "AI 总结耗时，单位毫秒",
+                                                                      "ordinalPosition":  10
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "agent_cost_ms",
+                                                                      "columnType":  "bigint unsigned",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "Agent 整体耗时，单位毫秒",
+                                                                      "ordinalPosition":  11
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "success",
+                                                                      "columnType":  "tinyint unsigned",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "是否成功：0-失败，1-成功",
+                                                                      "ordinalPosition":  12
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "error_message",
+                                                                      "columnType":  "text",
+                                                                      "nullable":  "YES",
+                                                                      "defaultValue":  null,
+                                                                      "columnComment":  "失败原因",
+                                                                      "ordinalPosition":  13
+                                                                  },
+                                                                  {
+                                                                      "columnName":  "created_time",
+                                                                      "columnType":  "datetime(3)",
+                                                                      "nullable":  "NO",
+                                                                      "defaultValue":  "CURRENT_TIMESTAMP(3)",
+                                                                      "columnComment":  "创建时间",
+                                                                      "ordinalPosition":  14
+                                                                  }
+                                                              ],
+                                               "toolCostMs":  7,
+                                               "agentCostMs":  3607,
+                                               "traceId":  "2d6cba02",
+                                               "decisionCostMs":  null,
+                                               "summaryCostMs":  null,
+                                               "steps":  [
+                                                             {
+                                                                 "stepName":  "KNOWLEDGE_RETRIEVAL",
+                                                                 "description":  "PRE_DECISION：未检索到相关本地知识",
+                                                                 "success":  true,
+                                                                 "costMs":  1,
+                                                                 "input":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。",
+                                                                 "output":  "{\"matched\":false,\"source\":null,\"content\":null}",
+                                                                 "inputView":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。",
+                                                                 "outputView":  {
+                                                                                    "matched":  false,
+                                                                                    "source":  null,
+                                                                                    "content":  null
+                                                                                },
+                                                                 "toolStatus":  null,
+                                                                 "errorCode":  null,
+                                                                 "errorMessage":  null
+                                                             },
+                                                             {
+                                                                 "stepName":  "TOOL_EXECUTION",
+                                                                 "description":  "执行工具：getTableSchema",
+                                                                 "success":  true,
+                                                                 "costMs":  7,
+                                                                 "input":  "{\"tableName\":\"agent_run_log\"}",
+                                                                 "output":  "[{\"columnName\":\"id\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"主键\",\"ordinalPosition\":1},{\"columnName\":\"trace_id\",\"columnType\":\"varchar(64)\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 运行追踪 ID\",\"ordinalPosition\":2},{\"columnName\":\"user_message\",\"columnType\":\"text\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"用户原始问题\",\"ordinalPosition\":3},{\"columnName\":\"answer\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"Agent 最终回答\",\"ordinalPosition\":4},{\"columnName\":\"used_tool\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否调用工具：0-否，1-是\",\"ordinalPosition\":5},{\"columnName\":\"tool_name\",\"columnType\":\"varchar(128)\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次调用的工具名称\",\"ordinalPosition\":6},{\"columnName\":\"tool_result\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次工具调用结果\",\"ordinalPosition\":7},{\"columnName\":\"decision_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 决策总耗时，单位毫秒\",\"ordinalPosition\":8},{\"columnName\":\"tool_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"工具调用总耗时，单位毫秒\",\"ordinalPosition\":9},{\"columnName\":\"summary_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 总结耗时，单位毫秒\",\"ordinalPosition\":10},{\"columnName\":\"agent_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 整体耗时，单位毫秒\",\"ordinalPosition\":11},{\"columnName\":\"success\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否成功：0-失败，1-成功\",\"ordinalPosition\":12},{\"columnName\":\"error_message\",\"columnType\":\"text\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"失败原因\",\"ordinalPosition\":13},{\"columnName\":\"created_time\",\"columnType\":\"datetime(3)\",\"nullable\":\"NO\",\"defaultValue\":\"CURRENT_TIMESTAMP(3)\",\"columnComment\":\"创建时间\",\"ordinalPosition\":14}]",
+                                                                 "inputView":  {
+                                                                                   "tableName":  "agent_run_log"
+                                                                               },
+                                                                 "outputView":  [
+                                                                                    {
+                                                                                        "columnName":  "id",
+                                                                                        "columnType":  "bigint unsigned",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "主键",
+                                                                                        "ordinalPosition":  1
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "trace_id",
+                                                                                        "columnType":  "varchar(64)",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "Agent 运行追踪 ID",
+                                                                                        "ordinalPosition":  2
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "user_message",
+                                                                                        "columnType":  "text",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "用户原始问题",
+                                                                                        "ordinalPosition":  3
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "answer",
+                                                                                        "columnType":  "mediumtext",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "Agent 最终回答",
+                                                                                        "ordinalPosition":  4
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "used_tool",
+                                                                                        "columnType":  "tinyint unsigned",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "是否调用工具：0-否，1-是",
+                                                                                        "ordinalPosition":  5
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "tool_name",
+                                                                                        "columnType":  "varchar(128)",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "最后一次调用的工具名称",
+                                                                                        "ordinalPosition":  6
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "tool_result",
+                                                                                        "columnType":  "mediumtext",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "最后一次工具调用结果",
+                                                                                        "ordinalPosition":  7
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "decision_cost_ms",
+                                                                                        "columnType":  "bigint unsigned",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "AI 决策总耗时，单位毫秒",
+                                                                                        "ordinalPosition":  8
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "tool_cost_ms",
+                                                                                        "columnType":  "bigint unsigned",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "工具调用总耗时，单位毫秒",
+                                                                                        "ordinalPosition":  9
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "summary_cost_ms",
+                                                                                        "columnType":  "bigint unsigned",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "AI 总结耗时，单位毫秒",
+                                                                                        "ordinalPosition":  10
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "agent_cost_ms",
+                                                                                        "columnType":  "bigint unsigned",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "Agent 整体耗时，单位毫秒",
+                                                                                        "ordinalPosition":  11
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "success",
+                                                                                        "columnType":  "tinyint unsigned",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "是否成功：0-失败，1-成功",
+                                                                                        "ordinalPosition":  12
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "error_message",
+                                                                                        "columnType":  "text",
+                                                                                        "nullable":  "YES",
+                                                                                        "defaultValue":  null,
+                                                                                        "columnComment":  "失败原因",
+                                                                                        "ordinalPosition":  13
+                                                                                    },
+                                                                                    {
+                                                                                        "columnName":  "created_time",
+                                                                                        "columnType":  "datetime(3)",
+                                                                                        "nullable":  "NO",
+                                                                                        "defaultValue":  "CURRENT_TIMESTAMP(3)",
+                                                                                        "columnComment":  "创建时间",
+                                                                                        "ordinalPosition":  14
+                                                                                    }
+                                                                                ],
+                                                                 "toolStatus":  "SUCCESS",
+                                                                 "errorCode":  null,
+                                                                 "errorMessage":  null
+                                                             },
+                                                             {
+                                                                 "stepName":  "KNOWLEDGE_RETRIEVAL",
+                                                                 "description":  "POST_TOOL：未检索到相关本地知识",
+                                                                 "success":  true,
+                                                                 "costMs":  1,
+                                                                 "input":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。\r\n[{\"columnName\":\"id\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"主键\",\"ordinalPosition\":1},{\"columnName\":\"trace_id\",\"columnType\":\"varchar(64)\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 运行追踪 ID\",\"ordinalPosition\":2},{\"columnName\":\"user_message\",\"columnType\":\"text\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"用户原始问题\",\"ordinalPosition\":3},{\"columnName\":\"answer\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"Agent 最终回答\",\"ordinalPosition\":4},{\"columnName\":\"used_tool\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否调用工具：0-否，1-是\",\"ordinalPosition\":5},{\"columnName\":\"tool_name\",\"columnType\":\"varchar(128)\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次调用的工具名称\",\"ordinalPosition\":6},{\"columnName\":\"tool_result\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次工具调用结果\",\"ordinalPosition\":7},{\"columnName\":\"decision_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 决策总耗时，单位毫秒\",\"ordinalPosition\":8},{\"columnName\":\"tool_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"工具调用总耗时，单位毫秒\",\"ordinalPosition\":9},{\"columnName\":\"summary_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 总结耗时，单位毫秒\",\"ordinalPosition\":10},{\"columnName\":\"agent_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 整体耗时，单位毫秒\",\"ordinalPosition\":11},{\"columnName\":\"success\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否成功：0-失败，1-成功\",\"ordinalPosition\":12},{\"columnName\":\"error_message\",\"columnType\":\"text\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"失败原因\",\"ordinalPosition\":13},{\"columnName\":\"created_time\",\"columnType\":\"datetime(3)\",\"nullable\":\"NO\",\"defaultValue\":\"CURRENT_TIMESTAMP(3)\",\"columnComment\":\"创建时间\",\"ordinalPosition\":14}]",
+                                                                 "output":  "{\"matched\":false,\"source\":null,\"content\":null}",
+                                                                 "inputView":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。\r\n[{\"columnName\":\"id\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"主键\",\"ordinalPosition\":1},{\"columnName\":\"trace_id\",\"columnType\":\"varchar(64)\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 运行追踪 ID\",\"ordinalPosition\":2},{\"columnName\":\"user_message\",\"columnType\":\"text\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"用户原始问题\",\"ordinalPosition\":3},{\"columnName\":\"answer\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"Agent 最终回答\",\"ordinalPosition\":4},{\"columnName\":\"used_tool\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否调用工具：0-否，1-是\",\"ordinalPosition\":5},{\"columnName\":\"tool_name\",\"columnType\":\"varchar(128)\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次调用的工具名称\",\"ordinalPosition\":6},{\"columnName\":\"tool_result\",\"columnType\":\"mediumtext\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"最后一次工具调用结果\",\"ordinalPosition\":7},{\"columnName\":\"decision_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 决策总耗时，单位毫秒\",\"ordinalPosition\":8},{\"columnName\":\"tool_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"工具调用总耗时，单位毫秒\",\"ordinalPosition\":9},{\"columnName\":\"summary_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"AI 总结耗时，单位毫秒\",\"ordinalPosition\":10},{\"columnName\":\"agent_cost_ms\",\"columnType\":\"bigint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"Agent 整体耗时，单位毫秒\",\"ordinalPosition\":11},{\"columnName\":\"success\",\"columnType\":\"tinyint unsigned\",\"nullable\":\"NO\",\"defaultValue\":null,\"columnComment\":\"是否成功：0-失败，1-成功\",\"ordinalPosition\":12},{\"columnName\":\"error_message\",\"columnType\":\"text\",\"nullable\":\"YES\",\"defaultValue\":null,\"columnComment\":\"失败原因\",\"ordinalPosition\":13},{\"columnName\":\"created_time\",\"columnType\":\"datetime(3)\",\"nullable\":\"NO\",\"defaultValue\":\"CURRENT_TIMESTAMP(3)\",\"columnComment\":\"创建时间\",\"ordinalPosition\":14}]",
+                                                                 "outputView":  {
+                                                                                    "matched":  false,
+                                                                                    "source":  null,
+                                                                                    "content":  null
+                                                                                },
+                                                                 "toolStatus":  null,
+                                                                 "errorCode":  null,
+                                                                 "errorMessage":  null
+                                                             },
+                                                             {
+                                                                 "stepName":  "SPRING_AI_CHAT",
+                                                                 "description":  "Spring AI 根据工具证据生成最终回答",
+                                                                 "success":  true,
+                                                                 "costMs":  3607,
+                                                                 "input":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。",
+                                                                 "output":  "根据 `agent_run_log` 表的真实字段结构，可以明确回答你的问题。\n\n## 直接原因\n\n- **追踪 ID** 保存在 **`trace_id`** 字段\n- **用户问题** 保存在 **`user_message`** 字段\n\n## 证据\n\n来自 `agent_run_log` 表的真实结构：\n\n| 字段 | 类型 | 可空 | 注释 | 位置 |\n|------|------|------|------|------|\n| `trace_id` | varchar(64) | 否 | Agent 运行追踪 ID | 第 2 列 |\n| `user_message` | text | 否 | 用户原始问题 | 第 3 列 |\n\n## 补充说明\n\n该表还包含其他关键字段，如果后续排查需要可一并参考：\n\n- `answer`（mediumtext）：Agent 最终回答\n- `used_tool`（tinyint）：是否调用工具（0-否，1-是）\n- `tool_name` / `tool_result`：最后一次调用的工具名称及结果\n- `success`（tinyint）：是否成功（0-失败，1-成功）\n- `error_message`（text）：失败原因\n- `created_time`（datetime(3)）：创建时间，默认 `CURRENT_TIMESTAMP(3)`\n\n如果你需要结合具体 SQL 或报错日志进一步诊断，也可以把日志和表名提供给我。",
+                                                                 "inputView":  "请查询当前数据库中 agent_run_log 表的真实字段结构，并告诉我追踪ID和用户问题分别保存在哪个字段。",
+                                                                 "outputView":  "根据 `agent_run_log` 表的真实字段结构，可以明确回答你的问题。\n\n## 直接原因\n\n- **追踪 ID** 保存在 **`trace_id`** 字段\n- **用户问题** 保存在 **`user_message`** 字段\n\n## 证据\n\n来自 `agent_run_log` 表的真实结构：\n\n| 字段 | 类型 | 可空 | 注释 | 位置 |\n|------|------|------|------|------|\n| `trace_id` | varchar(64) | 否 | Agent 运行追踪 ID | 第 2 列 |\n| `user_message` | text | 否 | 用户原始问题 | 第 3 列 |\n\n## 补充说明\n\n该表还包含其他关键字段，如果后续排查需要可一并参考：\n\n- `answer`（mediumtext）：Agent 最终回答\n- `used_tool`（tinyint）：是否调用工具（0-否，1-是）\n- `tool_name` / `tool_result`：最后一次调用的工具名称及结果\n- `success`（tinyint）：是否成功（0-失败，1-成功）\n- `error_message`（text）：失败原因\n- `created_time`（datetime(3)）：创建时间，默认 `CURRENT_TIMESTAMP(3)`\n\n如果你需要结合具体 SQL 或报错日志进一步诊断，也可以把日志和表名提供给我。",
+                                                                 "toolStatus":  null,
+                                                                 "errorCode":  null,
+                                                                 "errorMessage":  null
+                                                             }
+                                                         ]
+                                           }
+                              },
+                     "rawText":  null
+                 }
+}
