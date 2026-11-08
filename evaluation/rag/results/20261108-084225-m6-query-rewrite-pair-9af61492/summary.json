@@ -1,0 +1,143 @@
+{
+  "status": "COMPLETED",
+  "comparisonReady": true,
+  "plannedPairs": 15,
+  "succeededPairs": 15,
+  "errorPairs": 0,
+  "notCompletedPairs": 0,
+  "errorCaseIds": [],
+  "metrics": {
+    "original": {
+      "sourceHitAt1": {
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceHitAtK": {
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceReciprocalRankAtK": {
+        "allPlanned": 0.8555555555555556,
+        "successfulOnly": 0.8555555555555556
+      }
+    },
+    "rewritten": {
+      "sourceHitAt1": {
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceHitAtK": {
+        "allPlanned": 1.0,
+        "successfulOnly": 1.0
+      },
+      "evidenceReciprocalRankAtK": {
+        "allPlanned": 0.8777777777777778,
+        "successfulOnly": 0.8777777777777778
+      }
+    }
+  },
+  "rewriteStateDenominator": 15,
+  "rewriteStates": {
+    "APPLIED": 8,
+    "UNCHANGED": 6,
+    "SKIPPED": 1,
+    "FALLBACK": 0
+  },
+  "sameQueryReusedPairs": 7,
+  "pairedMrrChanges": {
+    "improved": [
+      "unknown-column-environment-002"
+    ],
+    "worsened": [
+      "table-not-exist-environment-005"
+    ],
+    "unchanged": [
+      "unknown-column-error-001",
+      "unknown-column-order-003",
+      "table-not-exist-error-004",
+      "table-not-exist-order-006",
+      "duplicate-error-007",
+      "duplicate-idempotency-008",
+      "duplicate-logical-delete-009",
+      "data-too-long-error-010",
+      "data-too-long-json-011",
+      "data-too-long-order-012",
+      "foreign-key-delete-013",
+      "foreign-key-parent-missing-014",
+      "foreign-key-order-015"
+    ]
+  },
+  "appliedSubset": {
+    "count": 8,
+    "metrics": {
+      "original": {
+        "sourceHitAt1": {
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceHitAtK": {
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceReciprocalRankAtK": {
+          "allPlanned": 0.7291666666666666,
+          "successfulOnly": 0.7291666666666666
+        }
+      },
+      "rewritten": {
+        "sourceHitAt1": {
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceHitAtK": {
+          "allPlanned": 1.0,
+          "successfulOnly": 1.0
+        },
+        "evidenceReciprocalRankAtK": {
+          "allPlanned": 0.7708333333333334,
+          "successfulOnly": 0.7708333333333334
+        }
+      }
+    }
+  },
+  "latencySuccessMs": {
+    "originalRetrieval": {
+      "count": 15,
+      "mean": 126.288,
+      "p50": 117.596,
+      "p95": 222.413
+    },
+    "rewriteCall": {
+      "count": 15,
+      "mean": 626.8,
+      "p50": 692,
+      "p95": 1024
+    },
+    "rewrittenRetrieval": {
+      "count": 15,
+      "mean": 123.642,
+      "p50": 117.596,
+      "p95": 199.176
+    },
+    "rewrittenStages": {
+      "count": 15,
+      "mean": 750.442,
+      "p50": 831.176,
+      "p95": 1126.495
+    },
+    "pairHttp": {
+      "count": 15,
+      "mean": 844.574,
+      "p50": 902.488,
+      "p95": 1385.167
+    }
+  },
+  "latencyErrorMs": {
+    "count": 0,
+    "mean": null,
+    "p50": null,
+    "p95": null
+  },
+  "runId": "20261108-084225-m6-query-rewrite-pair-9af61492",
+  "evaluatorVersion": "query-rewrite-pair-evaluator-v1"
+}
