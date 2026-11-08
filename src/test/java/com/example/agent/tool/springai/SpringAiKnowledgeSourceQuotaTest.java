@@ -105,7 +105,7 @@ class SpringAiKnowledgeSourceQuotaTest {
 		KnowledgeRetriever retriever = mock(KnowledgeRetriever.class);
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 
-		SpringAiKnowledgeSupport support = new SpringAiKnowledgeSupport(retriever, helper, mapper, 5, 3, 20, 100, 1,
+		SpringAiKnowledgeSupport support = new SpringAiKnowledgeSupport(retriever, helper, mapper, 5, 3, 20, 100, 1, 0,
 				factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 

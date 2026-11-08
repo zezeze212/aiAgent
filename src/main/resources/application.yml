@@ -71,6 +71,10 @@ agent:
       # 来源分散不保证回答更好，因此默认保持原有选择行为。
       max-chunks-per-source: ${AI_AGENT_CONTEXT_MAX_CHUNKS_PER_SOURCE:0}
 
+      # 按 CL100K_BASE 估算知识片段 token；不是模型精确用量。
+      # 0 关闭，保留已有字符预算和来源配额行为。
+      max-estimated-tokens: ${AI_AGENT_CONTEXT_MAX_ESTIMATED_TOKENS:0}
+
     # 正式 /agent/ask 的重排开关，与 Benchmark 开关独立。
     rerank:
       enabled: ${AI_AGENT_MAIN_RERANK_ENABLED:false}

@@ -35,7 +35,7 @@ class SpringAiKnowledgeSupportTest {
 		AgentJsonHelper helper = new AgentJsonHelper(objectMapper);
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 
-		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000, 0,
+		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000, 0, 0,
 				factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 
@@ -202,7 +202,7 @@ class SpringAiKnowledgeSupportTest {
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 
 		support = new SpringAiKnowledgeSupport(retriever, new AgentJsonHelper(objectMapper), objectMapper, 5, 5, 5, 20,
-				0, factory.getBeanProvider(AgentKnowledgeReranker.class),
+				0, 0, factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 
 		when(retriever.retrieve(context.getUserMessage(), 5)).thenReturn(result(budgetChunk("too-long", 6)));

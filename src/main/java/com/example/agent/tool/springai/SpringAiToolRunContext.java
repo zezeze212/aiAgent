@@ -57,6 +57,13 @@ public class SpringAiToolRunContext {
 	private int knowledgeContextChunks;
 
 	/**
+	 * 本次请求已选入知识片段的累计 token 估算值。
+	 *
+	 * 仅在 token 预算开启时累计，不代表模型服务返回的 usage。
+	 */
+	private int knowledgeContextEstimatedTokens;
+
+	/**
 	 * 本次请求中，各来源已经选入的片段数量。
 	 *
 	 * 与字符预算一样跨上下文筛选调用累计，不能放在共享的 Support Bean 中。 只有真正选入的片段才计数。
@@ -64,14 +71,21 @@ public class SpringAiToolRunContext {
 	private final Map<String, Integer> knowledgeChunksBySource = new HashMap<>();
 
 	/**
-	 * 一次上下文筛选的结果。
+	 * 本次筛选的 token 预算信息。
 	 *
-	 * selected 表示已准备的片段，不证明模型已接收或已引用。 各排除计数只记录本次筛选；totalChars、totalChunks 是请求累计值。
-	 * maxChunksPerSource 为 0 表示本次筛选关闭来源限制。
+	 * addedEstimatedTokens、skippedCount 是本次筛选值； totalEstimatedTokens 是整个请求的累计值。
+	 * enabled=false 时，零值表示未计量，不代表实际不消耗 token。
+	 */
+	public record KnowledgeTokenUsage(boolean enabled, String estimatorName, String countingScope,
+			int maxEstimatedTokens, int addedEstimatedTokens, int totalEstimatedTokens, int skippedCount) {
+	}
+
+	/**
+	 * 上下文准备结果，不单独证明模型已收到或使用这些证据。
 	 */
 	public record KnowledgeContextSelection(KnowledgeRetrievalResult selected, int candidateCount, int duplicateCount,
 			int invalidCount, int oversizedCount, int budgetSkippedCount, int addedChars, int totalChars,
-			int totalChunks, int maxChunksPerSource, int sourceLimitSkippedCount) {
+			int totalChunks, int maxChunksPerSource, int sourceLimitSkippedCount, KnowledgeTokenUsage tokenBudget) {
 	}
 
 	@Getter
@@ -381,13 +395,22 @@ public class SpringAiToolRunContext {
 	}
 
 	/**
-	 * 按输入顺序选择知识，并在请求内累计预算和来源数量。
-	 *
-	 * maxChunksPerSource 为 0 时关闭来源限制。 候选遇到第一个不满足的条件就退出本轮判断，因此排除计数不重复累计。
-	 * 被排除的片段不会登记为已选入，也不会进入引用允许集合。
+	 * 保留不启用 token 预算的入口。
 	 */
 	public synchronized KnowledgeContextSelection selectFreshKnowledge(KnowledgeRetrievalResult result, int maxChunks,
 			int maxChunkChars, int maxTotalChars, int maxChunksPerSource) {
+
+		return selectFreshKnowledge(result, maxChunks, maxChunkChars, maxTotalChars, maxChunksPerSource,
+				KnowledgeTokenBudget.disabled());
+	}
+
+	/**
+	 * 按输入顺序选择片段，并累计请求级字符、来源和 token 估算用量。
+	 *
+	 * 各排除原因只记录首先触发的条件。 只有通过全部约束的片段，才登记引用、去重和预算占用。
+	 */
+	public synchronized KnowledgeContextSelection selectFreshKnowledge(KnowledgeRetrievalResult result, int maxChunks,
+			int maxChunkChars, int maxTotalChars, int maxChunksPerSource, KnowledgeTokenBudget tokenBudget) {
 
 		if (maxChunks <= 0 || maxChunkChars <= 0 || maxTotalChars <= 0) {
 			throw new IllegalArgumentException("知识上下文预算必须大于 0");
@@ -398,6 +421,7 @@ public class SpringAiToolRunContext {
 		}
 
 		Objects.requireNonNull(result, "检索结果不能为空");
+		Objects.requireNonNull(tokenBudget, "token 预算规则不能为空");
 
 		List<KnowledgeChunk> selected = new ArrayList<>();
 
@@ -406,7 +430,9 @@ public class SpringAiToolRunContext {
 		int oversizedCount = 0;
 		int budgetSkippedCount = 0;
 		int sourceLimitSkippedCount = 0;
+		int tokenBudgetSkippedCount = 0;
 		int addedChars = 0;
+		int addedEstimatedTokens = 0;
 
 		for (KnowledgeChunk chunk : result.chunks()) {
 			if (chunk == null || chunk.chunkId() == null || chunk.chunkId().isBlank() || chunk.content() == null
@@ -429,15 +455,11 @@ public class SpringAiToolRunContext {
 				continue;
 			}
 
-			// 沿用现有的请求级预算；放不下当前片段时，继续考虑后面的片段。
 			if (knowledgeContextChunks >= maxChunks || chars > maxTotalChars - knowledgeContextChars) {
 				budgetSkippedCount++;
 				continue;
 			}
 
-			/*
-			 * 来源使用知识元数据中的标识，不进行操作系统路径解析。 缺少来源的片段归到同一个空来源组，避免把每个未知来源 都当作独立文档，从而绕过来源配额。
-			 */
 			String sourceKey = chunk.source() == null ? "" : chunk.source().trim();
 			int sourceCount = knowledgeChunksBySource.getOrDefault(sourceKey, 0);
 
@@ -446,7 +468,18 @@ public class SpringAiToolRunContext {
 				continue;
 			}
 
-			// 所有约束都通过后，一起登记引用、去重、预算和来源占用。
+			/*
+			 * 前面的确定性条件通过后才分词计数。 当前片段放不下时继续考虑后续片段，不截断正文。
+			 */
+			int estimatedTokens = tokenBudget.estimate(chunk);
+
+			if (tokenBudget.enabled()
+					&& estimatedTokens > tokenBudget.maxEstimatedTokens() - knowledgeContextEstimatedTokens) {
+				tokenBudgetSkippedCount++;
+				continue;
+			}
+
+			// 统一提交本片段的选入状态，避免被排除的片段占用配额或引用 ID。
 			injectedKnowledgeKeys.add(key);
 			preparedKnowledgeChunkIds.add(chunk.chunkId());
 			selected.add(chunk);
@@ -455,11 +488,18 @@ public class SpringAiToolRunContext {
 			knowledgeContextChars += chars;
 			addedChars += chars;
 			knowledgeChunksBySource.put(sourceKey, sourceCount + 1);
+
+			knowledgeContextEstimatedTokens += estimatedTokens;
+			addedEstimatedTokens += estimatedTokens;
 		}
+
+		KnowledgeTokenUsage tokenUsage = new KnowledgeTokenUsage(tokenBudget.enabled(), tokenBudget.estimatorName(),
+				tokenBudget.countingScope(), tokenBudget.maxEstimatedTokens(), addedEstimatedTokens,
+				knowledgeContextEstimatedTokens, tokenBudgetSkippedCount);
 
 		return new KnowledgeContextSelection(new KnowledgeRetrievalResult(result.retriever(), selected),
 				result.chunks().size(), duplicateCount, invalidCount, oversizedCount, budgetSkippedCount, addedChars,
-				knowledgeContextChars, knowledgeContextChunks, maxChunksPerSource, sourceLimitSkippedCount);
+				knowledgeContextChars, knowledgeContextChunks, maxChunksPerSource, sourceLimitSkippedCount, tokenUsage);
 	}
 
 	/**

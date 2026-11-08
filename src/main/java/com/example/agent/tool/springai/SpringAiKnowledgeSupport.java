@@ -9,10 +9,13 @@ import com.example.agent.rag.rerank.AgentKnowledgeReranker;
 import com.example.agent.rag.rewrite.AgentQueryRewriter;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.springai.SpringAiToolRunContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tokenizer.JTokkitTokenCountEstimator;
+import org.springframework.ai.tokenizer.TokenCountEstimator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -65,9 +68,23 @@ public class SpringAiKnowledgeSupport {
 	 */
 	private final int maxChunksPerSource;
 
+	/**
+	 * 知识片段累计 token 估算上限；0 表示关闭。
+	 */
+	private final int maxEstimatedTokens;
+
 	private final ObjectProvider<AgentKnowledgeReranker> rerankerProvider;
 
 	private final ObjectProvider<AgentQueryRewriter> queryRewriterProvider;
+
+	/**
+	 * 仅在真正启用并使用 token 预算时初始化计数器。 关闭策略不需要加载 tokenizer。
+	 */
+	private static final class TokenEstimatorHolder {
+
+		private static final TokenCountEstimator INSTANCE = new JTokkitTokenCountEstimator();
+
+	}
 
 	public SpringAiKnowledgeSupport(KnowledgeRetriever knowledgeRetriever, AgentJsonHelper agentJsonHelper,
 			ObjectMapper objectMapper, @Value("${agent.rag.top-k:5}") int topK,
@@ -75,6 +92,7 @@ public class SpringAiKnowledgeSupport {
 			@Value("${agent.rag.context.max-chunk-chars:2000}") int maxChunkChars,
 			@Value("${agent.rag.context.max-total-chars:6000}") int maxTotalChars,
 			@Value("${agent.rag.context.max-chunks-per-source:0}") int maxChunksPerSource,
+			@Value("${agent.rag.context.max-estimated-tokens:0}") int maxEstimatedTokens,
 			ObjectProvider<AgentKnowledgeReranker> rerankerProvider,
 			ObjectProvider<AgentQueryRewriter> queryRewriterProvider) {
 
@@ -90,6 +108,10 @@ public class SpringAiKnowledgeSupport {
 			throw new IllegalArgumentException("agent.rag.context.max-chunks-per-source 不能为负数");
 		}
 
+		if (maxEstimatedTokens < 0) {
+			throw new IllegalArgumentException("agent.rag.context.max-estimated-tokens 不能为负数");
+		}
+
 		this.knowledgeRetriever = knowledgeRetriever;
 		this.agentJsonHelper = agentJsonHelper;
 		this.objectMapper = objectMapper;
@@ -98,6 +120,7 @@ public class SpringAiKnowledgeSupport {
 		this.maxChunkChars = maxChunkChars;
 		this.maxTotalChars = maxTotalChars;
 		this.maxChunksPerSource = maxChunksPerSource;
+		this.maxEstimatedTokens = maxEstimatedTokens;
 		this.rerankerProvider = rerankerProvider;
 		this.queryRewriterProvider = queryRewriterProvider;
 	}
@@ -308,24 +331,27 @@ public class SpringAiKnowledgeSupport {
 	}
 
 	/**
-	 * 按请求级约束筛选候选，并记录准备加入上下文的结果。
-	 *
-	 * 来源配额只影响上下文选入，不改变检索器返回的候选和重排顺序。 KNOWLEDGE_CONTEXT 不代表模型一定已经收到或实际引用了这些资料。
+	 * 执行请求级上下文筛选，并记录本阶段的预算使用情况。
 	 */
 	private KnowledgeRetrievalResult selectContext(SpringAiToolRunContext runContext,
 			KnowledgeRetrievalResult candidates, KnowledgeRetrievalPhase phase) {
 
 		SpringAiToolRunContext.KnowledgeContextSelection selection = runContext.selectFreshKnowledge(candidates,
-				maxChunks, maxChunkChars, maxTotalChars, maxChunksPerSource);
+				maxChunks, maxChunkChars, maxTotalChars, maxChunksPerSource, createTokenBudget(phase));
+
+		SpringAiToolRunContext.KnowledgeTokenUsage tokenUsage = selection.tokenBudget();
 
 		String sourcePolicy = maxChunksPerSource == 0 ? "关闭" : String.valueOf(maxChunksPerSource);
+
+		String tokenDescription = tokenUsage.enabled() ? tokenUsage.totalEstimatedTokens() + "/"
+				+ tokenUsage.maxEstimatedTokens() + "，token 预算排除 " + tokenUsage.skippedCount() : "关闭";
 
 		String description = phase.name() + "：准备知识上下文" + "，候选 " + selection.candidateCount() + "，选入 "
 				+ selection.selected().chunks().size() + "，重复 " + selection.duplicateCount() + "，无效 "
 				+ selection.invalidCount() + "，单片段超长 " + selection.oversizedCount() + "，预算排除 "
 				+ selection.budgetSkippedCount() + "，单来源上限 " + sourcePolicy + "，来源配额排除 "
 				+ selection.sourceLimitSkippedCount() + "，累计正文长度 " + selection.totalChars() + "/" + maxTotalChars
-				+ "，累计片段数 " + selection.totalChunks() + "/" + maxChunks;
+				+ "，累计片段数 " + selection.totalChunks() + "/" + maxChunks + "，token 估算预算 " + tokenDescription;
 
 		runContext.addStep(new AgentTraceStep("KNOWLEDGE_CONTEXT", description, true, 0L, null,
 				agentJsonHelper.serializeForStorage(selection), null));
@@ -334,25 +360,80 @@ public class SpringAiKnowledgeSupport {
 	}
 
 	/**
-	 * 保留每个 Chunk 的独立来源信息，避免拼接后失去出处。 暂时使用 Chunk ID 标记，后续再完善面向用户的引用展示。
+	 * 创建本阶段的计数规则。
+	 *
+	 * 两个阶段使用相同编码，但知识片段的实际表示不同。 请求累计用量是各次选入片段估算值的和。
+	 */
+	private KnowledgeTokenBudget createTokenBudget(KnowledgeRetrievalPhase phase) {
+		if (maxEstimatedTokens == 0) {
+			return KnowledgeTokenBudget.disabled();
+		}
+
+		String scope = phase == KnowledgeRetrievalPhase.PRE_DECISION ? "PRE_FORMATTED_CHUNK_SUM"
+				: "POST_JSON_CHUNK_SUM";
+
+		return new KnowledgeTokenBudget(maxEstimatedTokens, "CL100K_BASE_PROXY", scope,
+				chunk -> estimateChunkTokens(chunk, phase));
+	}
+
+	/**
+	 * 前置阶段统计格式化文本，工具后阶段统计片段 JSON。
+	 *
+	 * 不统计公共使用规则、完整工具结果及消息协议开销。
+	 */
+	private int estimateChunkTokens(KnowledgeChunk chunk, KnowledgeRetrievalPhase phase) {
+
+		String text;
+
+		if (phase == KnowledgeRetrievalPhase.PRE_DECISION) {
+			text = buildChunkContext(chunk);
+		}
+		else {
+			try {
+				text = objectMapper.writeValueAsString(chunk);
+			}
+			catch (JsonProcessingException e) {
+				// 序列化失败不能被记录为零 token 后继续选入。
+				throw new IllegalStateException("知识片段序列化失败，无法估算 token", e);
+			}
+		}
+
+		return TokenEstimatorHolder.INSTANCE.estimate(text);
+	}
+
+	/**
+	 * 使用与 token 估算相同的片段格式构造前置知识上下文。
 	 */
 	private String buildContext(KnowledgeRetrievalResult result) {
 		StringBuilder builder = new StringBuilder();
 
 		for (KnowledgeChunk chunk : result.chunks()) {
-			builder.append("[知识:").append(chunk.chunkId()).append("]\n");
-			builder.append("来源：").append(chunk.source()).append("\n");
-
-			if (chunk.title() != null && !chunk.title().isBlank()) {
-				builder.append("标题：").append(chunk.title()).append("\n");
-			}
-
-			if (chunk.section() != null && !chunk.section().isBlank()) {
-				builder.append("章节：").append(chunk.section()).append("\n");
-			}
-
-			builder.append("正文：\n").append(chunk.content()).append("\n\n");
+			builder.append(buildChunkContext(chunk));
 		}
+
+		return builder.toString();
+	}
+
+	/**
+	 * 前置知识片段的实际文本表示。
+	 *
+	 * 由 Prompt 构造和 token 估算共同调用，避免计数时遗漏引用或来源包装。
+	 */
+	private String buildChunkContext(KnowledgeChunk chunk) {
+		StringBuilder builder = new StringBuilder();
+
+		builder.append("[知识:").append(chunk.chunkId()).append("]\n");
+		builder.append("来源：").append(chunk.source()).append("\n");
+
+		if (chunk.title() != null && !chunk.title().isBlank()) {
+			builder.append("标题：").append(chunk.title()).append("\n");
+		}
+
+		if (chunk.section() != null && !chunk.section().isBlank()) {
+			builder.append("章节：").append(chunk.section()).append("\n");
+		}
+
+		builder.append("正文：\n").append(chunk.content()).append("\n\n");
 
 		return builder.toString();
 	}
