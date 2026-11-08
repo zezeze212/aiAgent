@@ -67,6 +67,10 @@ agent:
       max-chunk-chars: 2000
       max-total-chars: 6000
 
+      # 请求级单来源片段上限；0 关闭，正数启用。
+      # 来源分散不保证回答更好，因此默认保持原有选择行为。
+      max-chunks-per-source: ${AI_AGENT_CONTEXT_MAX_CHUNKS_PER_SOURCE:0}
+
     # 正式 /agent/ask 的重排开关，与 Benchmark 开关独立。
     rerank:
       enabled: ${AI_AGENT_MAIN_RERANK_ENABLED:false}

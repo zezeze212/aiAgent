@@ -60,6 +60,11 @@ public class SpringAiKnowledgeSupport {
 
 	private final int maxTotalChars;
 
+	/**
+	 * 每次 Agent 请求中，单个来源允许选入的片段上限。 0 表示关闭来源限制。
+	 */
+	private final int maxChunksPerSource;
+
 	private final ObjectProvider<AgentKnowledgeReranker> rerankerProvider;
 
 	private final ObjectProvider<AgentQueryRewriter> queryRewriterProvider;
@@ -69,6 +74,7 @@ public class SpringAiKnowledgeSupport {
 			@Value("${agent.rag.context.max-chunks:5}") int maxChunks,
 			@Value("${agent.rag.context.max-chunk-chars:2000}") int maxChunkChars,
 			@Value("${agent.rag.context.max-total-chars:6000}") int maxTotalChars,
+			@Value("${agent.rag.context.max-chunks-per-source:0}") int maxChunksPerSource,
 			ObjectProvider<AgentKnowledgeReranker> rerankerProvider,
 			ObjectProvider<AgentQueryRewriter> queryRewriterProvider) {
 
@@ -80,6 +86,10 @@ public class SpringAiKnowledgeSupport {
 			throw new IllegalArgumentException("agent.rag.context 下的预算配置必须大于 0");
 		}
 
+		if (maxChunksPerSource < 0) {
+			throw new IllegalArgumentException("agent.rag.context.max-chunks-per-source 不能为负数");
+		}
+
 		this.knowledgeRetriever = knowledgeRetriever;
 		this.agentJsonHelper = agentJsonHelper;
 		this.objectMapper = objectMapper;
@@ -87,6 +97,7 @@ public class SpringAiKnowledgeSupport {
 		this.maxChunks = maxChunks;
 		this.maxChunkChars = maxChunkChars;
 		this.maxTotalChars = maxTotalChars;
+		this.maxChunksPerSource = maxChunksPerSource;
 		this.rerankerProvider = rerankerProvider;
 		this.queryRewriterProvider = queryRewriterProvider;
 	}
@@ -297,21 +308,24 @@ public class SpringAiKnowledgeSupport {
 	}
 
 	/**
-	 * 筛选尚未使用的片段，并记录准备加入上下文的结果。
+	 * 按请求级约束筛选候选，并记录准备加入上下文的结果。
 	 *
-	 * KNOWLEDGE_CONTEXT 表示上下文准备结果， 不代表模型一定已经收到资料或实际引用了资料。
+	 * 来源配额只影响上下文选入，不改变检索器返回的候选和重排顺序。 KNOWLEDGE_CONTEXT 不代表模型一定已经收到或实际引用了这些资料。
 	 */
 	private KnowledgeRetrievalResult selectContext(SpringAiToolRunContext runContext,
 			KnowledgeRetrievalResult candidates, KnowledgeRetrievalPhase phase) {
 
 		SpringAiToolRunContext.KnowledgeContextSelection selection = runContext.selectFreshKnowledge(candidates,
-				maxChunks, maxChunkChars, maxTotalChars);
+				maxChunks, maxChunkChars, maxTotalChars, maxChunksPerSource);
+
+		String sourcePolicy = maxChunksPerSource == 0 ? "关闭" : String.valueOf(maxChunksPerSource);
 
 		String description = phase.name() + "：准备知识上下文" + "，候选 " + selection.candidateCount() + "，选入 "
 				+ selection.selected().chunks().size() + "，重复 " + selection.duplicateCount() + "，无效 "
 				+ selection.invalidCount() + "，单片段超长 " + selection.oversizedCount() + "，预算排除 "
-				+ selection.budgetSkippedCount() + "，累计正文长度 " + selection.totalChars() + "/" + maxTotalChars + "，累计片段数 "
-				+ selection.totalChunks() + "/" + maxChunks;
+				+ selection.budgetSkippedCount() + "，单来源上限 " + sourcePolicy + "，来源配额排除 "
+				+ selection.sourceLimitSkippedCount() + "，累计正文长度 " + selection.totalChars() + "/" + maxTotalChars
+				+ "，累计片段数 " + selection.totalChunks() + "/" + maxChunks;
 
 		runContext.addStep(new AgentTraceStep("KNOWLEDGE_CONTEXT", description, true, 0L, null,
 				agentJsonHelper.serializeForStorage(selection), null));

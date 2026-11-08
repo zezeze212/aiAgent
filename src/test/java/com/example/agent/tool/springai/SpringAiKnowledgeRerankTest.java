@@ -205,7 +205,7 @@ class SpringAiKnowledgeRerankTest {
 			factory.registerSingleton("agentKnowledgeReranker", new AgentKnowledgeReranker(remote));
 		}
 
-		return new SpringAiKnowledgeSupport(retriever, helper, mapper, 5, maxChunks, 2000, 6000,
+		return new SpringAiKnowledgeSupport(retriever, helper, mapper, 5, maxChunks, 2000, 6000, 0,
 				factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 	}

@@ -33,10 +33,9 @@ class SpringAiKnowledgeSupportTest {
 		objectMapper = new ObjectMapper();
 
 		AgentJsonHelper helper = new AgentJsonHelper(objectMapper);
-
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 
-		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000,
+		support = new SpringAiKnowledgeSupport(retriever, helper, objectMapper, 5, 5, 2000, 6000, 0,
 				factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 
@@ -203,7 +202,7 @@ class SpringAiKnowledgeSupportTest {
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 
 		support = new SpringAiKnowledgeSupport(retriever, new AgentJsonHelper(objectMapper), objectMapper, 5, 5, 5, 20,
-				factory.getBeanProvider(AgentKnowledgeReranker.class),
+				0, factory.getBeanProvider(AgentKnowledgeReranker.class),
 				factory.getBeanProvider(AgentQueryRewriter.class));
 
 		when(retriever.retrieve(context.getUserMessage(), 5)).thenReturn(result(budgetChunk("too-long", 6)));
@@ -222,6 +221,7 @@ class SpringAiKnowledgeSupportTest {
 		KnowledgeRetrievalResult post = support.retrievePostToolKnowledge(context, toolResult);
 
 		assertThat(post.chunks()).extracting(KnowledgeChunk::chunkId).containsExactly("fits");
+
 		assertThat(context.getPreparedKnowledgeChunkIds()).containsExactly("fits");
 
 		verify(retriever).retrieve(query(toolResult), 5);
