@@ -54,4 +54,9 @@ public class AgentAskResponse {
 	 */
 	private KnowledgeCitationReport knowledgeCitations = KnowledgeCitationReport.notChecked();
 
+	/**
+	 * 正式回答链的模型执行信息。 历史持久化通过 MODEL_EXECUTION Step 保存。
+	 */
+	private ModelExecutionInfo modelExecution;
+
 }

@@ -33,10 +33,10 @@ public class AgentController {
 			throw new BusinessException(400, "message 不能为空");
 		}
 
-		AgentAskResponse response = springAiToolChatService.chat(request.getMessage());
+		AgentAskResponse response = springAiToolChatService.chat(request.getMessage(), request.getModelId());
 
 		/*
-		 * Service 已完成模型调用和日志保存。 此处只治理 HTTP 展示数据，不修改运行时证据和最终 answer。
+		 * Service 已完成模型调用和日志保存。 此处继续执行现有 HTTP 展示治理。
 		 */
 		agentTraceSanitizer.sanitizeResponse(response);
 

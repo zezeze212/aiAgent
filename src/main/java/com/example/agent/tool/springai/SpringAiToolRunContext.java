@@ -227,8 +227,9 @@ public class SpringAiToolRunContext {
 
 		Long toolCostMs = usedTool ? totalToolCostMs : null;
 
+		// 模型执行信息由 Service 在取得最终调用结果后设置。
 		return new AgentAskResponse(answer, usedTool, toolName, toolResult, toolCostMs, agentCostMs, traceId, null,
-				null, new ArrayList<>(steps), knowledgeCitations);
+				null, new ArrayList<>(steps), knowledgeCitations, null);
 	}
 
 	public synchronized boolean hasAbortAnswer() {

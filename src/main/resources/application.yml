@@ -48,6 +48,12 @@ mybatis:
 agent:
   max-execution-time-ms: 120000
 
+  models:
+    default-id: ${AI_AGENT_DEFAULT_MODEL_ID:deepseek-main}
+
+    deepseek:
+      enabled: ${AI_AGENT_DEEPSEEK_ENABLED:true}
+
   tool-governance:
     allowed-permissions:
       - DATABASE_METADATA_READ

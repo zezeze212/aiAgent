@@ -4,11 +4,14 @@ import com.example.agent.config.AgentProperties;
 import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.dto.KnowledgeCitationReport;
+import com.example.agent.dto.ModelExecutionInfo;
+import com.example.agent.model.AgentModelRegistry;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.tool.springai.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
@@ -62,7 +65,7 @@ public class SpringAiToolChatService {
 			4. 不要使用相同参数重复调用同一个工具。
 			""";
 
-	private final ChatClient chatClient;
+	private final AgentModelRegistry modelRegistry;
 
 	private final Map<String, ToolCallback> diagnosticToolCallbacks;
 
@@ -76,15 +79,16 @@ public class SpringAiToolChatService {
 
 	private final SpringAiKnowledgeSupport knowledgeSupport;
 
-	public SpringAiToolChatService(ChatClient.Builder chatClientBuilder, SpringAiDiagnosticTools diagnosticTools,
+	public SpringAiToolChatService(AgentModelRegistry modelRegistry, SpringAiDiagnosticTools diagnosticTools,
 			AgentProperties agentProperties, ObjectMapper objectMapper, AgentJsonHelper agentJsonHelper,
 			AgentLogService agentLogService, SpringAiKnowledgeSupport knowledgeSupport) {
 
-		this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
+		this.modelRegistry = modelRegistry;
 
 		this.diagnosticToolCallbacks = Arrays.stream(ToolCallbacks.from(diagnosticTools))
 			.collect(
 					Collectors.toUnmodifiableMap(callback -> callback.getToolDefinition().name(), Function.identity()));
+
 		this.agentProperties = agentProperties;
 		this.objectMapper = objectMapper;
 		this.agentJsonHelper = agentJsonHelper;
@@ -92,24 +96,42 @@ public class SpringAiToolChatService {
 		this.knowledgeSupport = knowledgeSupport;
 	}
 
+	/**
+	 * 保留已有内部调用入口，默认使用服务端配置的模型。
+	 */
 	public AgentAskResponse chat(String userMessage) {
-		String traceId = UUID.randomUUID().toString().substring(0, 8);
+		return chat(userMessage, null);
+	}
 
+	public AgentAskResponse chat(String userMessage, String requestedModelId) {
+		/*
+		 * 在 RAG、查询改写和模型调用前校验选择。 显式选择失败时直接拒绝，不悄悄使用默认模型。
+		 */
+		AgentModelRegistry.Entry selectedModel = modelRegistry.resolve(requestedModelId);
+
+		String traceId = UUID.randomUUID().toString().substring(0, 8);
 		long agentStartTime = System.currentTimeMillis();
 
 		SpringAiToolRunContext runContext = new SpringAiToolRunContext(traceId, userMessage,
 				agentProperties.getMaxExecutionTimeMs(), objectMapper, agentJsonHelper);
 
-		log.info("Spring AI Agent 请求开始，traceId={}, userMessageLength={}", traceId,
-				userMessage == null ? 0 : userMessage.length());
+		log.info("Spring AI Agent 请求开始，traceId={}, modelId={}, configuredModel={}", traceId, selectedModel.modelId(),
+				selectedModel.providerModel());
 
 		String answer;
 		boolean chatSuccess;
 		String chatErrorMessage = null;
 
+		String callStatus = "NOT_CALLED";
+		String reportedModel = null;
+		String providerResponseId = null;
+
 		long chatStartTime = System.currentTimeMillis();
+
+		// 原有知识准备、边界判断和工具可用性策略继续复用。
 		String modelUserMessage = knowledgeSupport.prepareInitialUserMessage(runContext);
 		Optional<String> clarificationAnswer = SpringAiRequestBoundaryPolicy.findClarificationAnswer(userMessage);
+
 		List<ToolCallback> availableToolCallbacks = SpringAiToolAvailabilityPolicy.selectToolNames(userMessage)
 			.stream()
 			.map(this::getDiagnosticToolCallback)
@@ -125,23 +147,38 @@ public class SpringAiToolChatService {
 			log.info("Spring AI 请求在模型调用前返回确定性澄清，traceId={}", traceId);
 		}
 		else {
+			/*
+			 * 先标记为未取得最终响应。 发生异常时不能把“选中了模型”当作“模型成功返回”。
+			 */
+			callStatus = "FAILED";
+
 			try {
-				ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt().user(modelUserMessage);
+				ChatClient.ChatClientRequestSpec requestSpec = selectedModel.client()
+					.prompt()
+					.system(SYSTEM_PROMPT)
+					.user(modelUserMessage);
 
 				if (!availableToolCallbacks.isEmpty()) {
 					requestSpec = requestSpec.toolCallbacks(availableToolCallbacks);
 				}
 
-				String modelAnswer = requestSpec
-					/*
-					 * ToolContext 只传给本地工具，不发送给 DeepSeek。
-					 */
+				ChatResponse modelResponse = requestSpec
+					// ToolContext 只交给本地工具，不作为工具参数发送给模型。
 					.toolContext(Map.of(SpringAiToolRunContext.CONTEXT_KEY, runContext))
 					.call()
-					.content();
+					.chatResponse();
+
+				if (modelResponse != null) {
+					callStatus = "RETURNED";
+
+					if (modelResponse.getMetadata() != null) {
+						reportedModel = blankToNull(modelResponse.getMetadata().getModel());
+						providerResponseId = blankToNull(modelResponse.getMetadata().getId());
+					}
+				}
 
 				/*
-				 * 双重保护： 即使某些情况下框架没有把工具异常继续抛出， 只要上下文已经记录失败，就不能使用模型生成的答案覆盖它。
+				 * 保留已有双重保护： 即使框架继续返回响应，也不能覆盖工具治理产生的终止答案。
 				 */
 				if (runContext.hasAbortAnswer()) {
 					answer = runContext.getAbortAnswer();
@@ -149,7 +186,7 @@ public class SpringAiToolChatService {
 					chatErrorMessage = "Spring AI Tool Calling 因工具治理结果终止";
 				}
 				else {
-					answer = modelAnswer;
+					answer = extractModelAnswer(modelResponse);
 					chatSuccess = true;
 				}
 			}
@@ -165,12 +202,23 @@ public class SpringAiToolChatService {
 					chatErrorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
 				}
 
-				log.warn("Spring AI Agent 调用未正常完成，traceId={}, hasToolAbort={}, exceptionType={}", traceId,
-						runContext.hasAbortAnswer(), e.getClass().getSimpleName());
+				// 不调用其他注册项，不实施模型回退。
+				log.warn("Spring AI Agent 调用未正常完成，traceId={}, modelId={}, hasToolAbort={}, exceptionType={}", traceId,
+						selectedModel.modelId(), runContext.hasAbortAnswer(), e.getClass().getSimpleName());
 			}
 		}
 
 		long chatCostMs = System.currentTimeMillis() - chatStartTime;
+
+		ModelExecutionInfo modelExecution = new ModelExecutionInfo(
+				blankToNull(requestedModelId == null ? null : requestedModelId.trim()), selectedModel.modelId(),
+				selectedModel.provider(), selectedModel.providerModel(), reportedModel, providerResponseId, callStatus);
+
+		/*
+		 * 复用现有 Step 持久化，不新增表。 这里只记录选择与结果信息；完整链路耗时仍由 SPRING_AI_CHAT 等原有步骤表达。
+		 */
+		runContext.addStep(new AgentTraceStep("MODEL_EXECUTION", "记录回答模型选择与最终调用状态", chatSuccess, 0L, null,
+				agentJsonHelper.serializeForStorage(modelExecution), chatErrorMessage));
 
 		if (clarificationAnswer.isPresent()) {
 			runContext.addDeterministicClarificationStep(chatCostMs, answer);
@@ -178,8 +226,6 @@ public class SpringAiToolChatService {
 		else {
 			runContext.addSpringAiChatStep(chatSuccess, chatCostMs, answer, chatErrorMessage);
 
-			// 只检查正常返回的模型答案。
-			// 确定性澄清、工具治理终止和调用失败不进入此检查。
 			if (chatSuccess) {
 				auditKnowledgeCitations(runContext, answer);
 			}
@@ -188,6 +234,7 @@ public class SpringAiToolChatService {
 		long agentCostMs = System.currentTimeMillis() - agentStartTime;
 
 		AgentAskResponse response = runContext.buildResponse(answer, agentCostMs);
+		response.setModelExecution(modelExecution);
 
 		try {
 			agentLogService.saveRunLog(userMessage, response);
@@ -196,10 +243,31 @@ public class SpringAiToolChatService {
 			log.error("Spring AI Agent 运行日志保存失败，已保留本次回答，traceId={}", traceId, e);
 		}
 
-		log.info("Spring AI Agent 请求完成，traceId={}, usedTool={}, toolCallCount={}, agentCostMs={}", traceId,
-				response.getUsedTool(), runContext.getToolCallCount(), response.getAgentCostMs());
+		log.info("Spring AI Agent 请求完成，traceId={}, modelId={}, callStatus={}, usedTool={}, agentCostMs={}", traceId,
+				selectedModel.modelId(), callStatus, response.getUsedTool(), response.getAgentCostMs());
 
 		return response;
+	}
+
+	/**
+	 * 从完整响应读取最终文本。 空响应不能被记录为一次正常回答。
+	 */
+	private String extractModelAnswer(ChatResponse response) {
+		if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+			throw new IllegalStateException("模型未返回有效回答");
+		}
+
+		String text = response.getResult().getOutput().getText();
+
+		if (text == null || text.isBlank()) {
+			throw new IllegalStateException("模型返回的回答为空");
+		}
+
+		return text;
+	}
+
+	private String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
 	}
 
 	/**

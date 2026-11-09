@@ -7,6 +7,7 @@ import com.example.agent.dto.KnowledgeCitationReport;
 import com.example.agent.entity.AgentStepLog;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.example.agent.model.AgentModelRegistry;
 import com.example.agent.rag.KnowledgeChunk;
 import com.example.agent.rag.KnowledgeRetrievalResult;
 import com.example.agent.support.AgentJsonHelper;
@@ -21,6 +22,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -40,15 +45,16 @@ class KnowledgeCitationFlowTest {
 
 	@Test
 	void shouldCarryCitationsThroughServiceAndPersistAuditStep() throws Exception {
-		ChatClient.Builder builder = mock(ChatClient.Builder.class, RETURNS_SELF);
+
 		ChatClient client = mock(ChatClient.class);
 		ChatClient.ChatClientRequestSpec request = mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
 		ChatClient.CallResponseSpec call = mock(ChatClient.CallResponseSpec.class);
 
-		when(builder.build()).thenReturn(client);
 		when(client.prompt()).thenReturn(request);
 		when(request.call()).thenReturn(call);
-		when(call.content()).thenReturn("原因说明 [知识:c1]。");
+		when(call.chatResponse())
+			.thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("原因说明 [知识:c1]。"))),
+					ChatResponseMetadata.builder().model("test-model").id("citation-response").build()));
 
 		SpringAiKnowledgeSupport knowledgeSupport = mock(SpringAiKnowledgeSupport.class);
 
@@ -72,7 +78,10 @@ class KnowledgeCitationFlowTest {
 		SpringAiDiagnosticTools tools = new SpringAiDiagnosticTools(mock(ToolRegistry.class), helper, mapper,
 				knowledgeSupport);
 
-		SpringAiToolChatService service = new SpringAiToolChatService(builder, tools, new AgentProperties(), mapper,
+		AgentModelRegistry registry = new AgentModelRegistry("deepseek-main",
+				List.of(new AgentModelRegistry.Entry("deepseek-main", "test", "test-model", true, true, client)));
+
+		SpringAiToolChatService service = new SpringAiToolChatService(registry, tools, new AgentProperties(), mapper,
 				helper, logService, knowledgeSupport);
 
 		AgentAskResponse response = service.chat("请解释唯一键冲突");
@@ -98,6 +107,18 @@ class KnowledgeCitationFlowTest {
 		assertThat(persisted.path("citations").get(0).path("source").asText()).isEqualTo("docs/knowledge/test.md");
 		assertThat(persisted.path("citations").get(0).path("content").asText()).isEqualTo("唯一键冲突说明");
 		assertThat(persisted.path("semanticSupportChecked").asBoolean()).isFalse();
+
+		AgentStepLog modelStep = captor.getAllValues()
+			.stream()
+			.filter(step -> "MODEL_EXECUTION".equals(step.getStepName()))
+			.findFirst()
+			.orElseThrow();
+
+		JsonNode persistedModel = mapper.readTree(modelStep.getOutputText());
+
+		assertThat(persistedModel.path("modelId").asText()).isEqualTo("deepseek-main");
+		assertThat(persistedModel.path("reportedModel").asText()).isEqualTo("test-model");
+		assertThat(persistedModel.path("callStatus").asText()).isEqualTo("RETURNED");
 	}
 
 	@Test
@@ -114,7 +135,7 @@ class KnowledgeCitationFlowTest {
 
 		SpringAiToolChatService service = mock(SpringAiToolChatService.class);
 
-		when(service.chat("请解释唯一键冲突")).thenReturn(response);
+		when(service.chat("请解释唯一键冲突", null)).thenReturn(response);
 
 		AgentTraceSanitizer sanitizer = new AgentTraceSanitizer(new TraceContentSanitizer(), helper);
 
