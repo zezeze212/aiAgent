@@ -54,6 +54,21 @@ agent:
     deepseek:
       enabled: ${AI_AGENT_DEEPSEEK_ENABLED:true}
 
+    autodl:
+      enabled: ${AI_AGENT_AUTODL_ENABLED:false}
+
+      # Java 在 Windows 本机运行，通过 SSH 隧道访问。
+      # 不带 /v1，不带末尾斜杠。
+      base-url: ${AI_AGENT_AUTODL_BASE_URL:http://127.0.0.1:18000}
+
+      # 与 AutoDL 启动 vLLM 时使用的 Key 相同。
+      api-key: ${AUTODL_MODEL_API_KEY:}
+      model: ${AI_AGENT_AUTODL_MODEL:qwen3.8-27b-fp8-agent}
+
+      connect-timeout-ms: ${AI_AGENT_AUTODL_CONNECT_TIMEOUT_MS:2000}
+      read-timeout-ms: ${AI_AGENT_AUTODL_READ_TIMEOUT_MS:45000}
+      max-tokens: ${AI_AGENT_AUTODL_MAX_TOKENS:1024}
+
   tool-governance:
     allowed-permissions:
       - DATABASE_METADATA_READ

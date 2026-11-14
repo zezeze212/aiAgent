@@ -32,3 +32,8 @@ agent:
     mode: rule
     vector:
       enabled: false
+
+  models:
+    autodl:
+      # 避免开发机环境变量导致普通上下文测试依赖云端配置。
+      enabled: false
