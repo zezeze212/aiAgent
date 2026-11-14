@@ -3,7 +3,7 @@
 > 文档职责：本文件是项目定位、架构边界和 M0～M11 长期路线的唯一权威来源。  
 > 当前代码事实、验证结果、已知限制和下一阶段入口见 [CURRENT-STATUS.md](CURRENT-STATUS.md)。  
 > 初版制定：2026-08-02。  
-> 本次更新：2026-11-08（Asia/Shanghai）。
+> 本次更新：2026-11-14（Asia/Shanghai）。
 
 ## 1. 项目定位
 
@@ -137,15 +137,15 @@ M2 已完成 Tool Contract / Registry / Governance；M3 已完成 Spring AI 正�
 
 正式链路已包含 M6 增量：
 
-1. `/agent/ask` → `SpringAiToolChatService` 创建请求上下文与 traceId。
+1. `/agent/ask` → `SpringAiToolChatService` 解析 modelId、选择注册的生成客户端，再创建请求上下文与 traceId。
 2. `SpringAiKnowledgeSupport` 在首次检索前可选改写查询，通过 `KnowledgeRetriever` 选择 rule / vector / bm25 / hybrid。
 3. 可选重排后，执行请求级去重、数量、字符、可选来源配额与可选 token 估算预算选择。
-4. 边界与可用工具策略继续依据原始请求工作。非澄清请求进入 Spring AI ChatClient / DeepSeek。
+4. 边界与可用工具策略继续依据原始请求工作。非澄清请求进入 所选模型的 Spring AI ChatClient。
 5. Spring AI 原生 Tool Calling 经适配器、请求上下文与 ToolRegistry 治理并执行，保留真实结果与 Trace。
 6. 按现有条件补充工具后知识，预算在同一请求中累计。
 7. 正常回答执行引用 ID 审计，关联实际选入的片段快照；保存 Run / Steps，在 HTTP 边界治理展示内容并返回结构化出处。
 
-当前生成主链仍为 DeepSeek；多模型选择尚未实施。查询改写调用与回答生成分别承担检索查询处理和诊断生成职责，后续路由需明确区分。
+当前生成主链支持默认 DeepSeek 和显式 AutoDL Qwen，复用同一套业务治理。查询改写、Embedding 和重排保持独立配置，不随回答模型自动切换。MODEL_EXECUTION 与响应记录所选模型和实际返回元数据。
 
 向量实现继续为 Ollama bge-m3（1024 维）+ Qdrant，受管集合 ai_agent_knowledge_managed_v1。三个正式工具为 getTableSchema、analyzeSqlErrorWithSchema、analyzeStackTrace。
 
@@ -198,7 +198,7 @@ M2 已完成 Tool Contract / Registry / Governance；M3 已完成 Spring AI 正�
 | M4 | 已完成 | Python Evaluation Harness、14条校准集、50条回归集、版本化报告 | `v0.7.0-evaluation`（本地核验） |
 | M5 | 功能、验收与提交已确认；标签未确认 | 受管索引、Dense RAG、预算、引用审计；全量测试 112 项通过 | `v0.8.0-vector-rag`（建议，尚未确认创建） |
 | M6 | 功能已实现，最小收尾待确认 | 正式检索策略、可选重排/改写、预算与引用增强、历史报告 | `v0.9.0-rag-benchmark` |
-| M7 | 下一功能阶段 | DeepSeek + AutoDL 多模型、可选微调 | `v0.10.0-multi-model` |
+| M7 | 核心能力与正式成功路径已验证并提交；收尾待确认 | DeepSeek + AutoDL 多模型，LoRA 非必做 | `v0.10.0-multi-model` |
 | M8 | 后续计划 | Async Task + SSE | `v0.11.0-async-sse` |
 | M9 | 后续计划 | Observability + MCP | `v0.12.0-observable-mcp` |
 | M10 | 后续计划 | Vue 诊断控制台 | `v0.13.0-console` |
@@ -348,27 +348,66 @@ M6 功能已实现，各单元定向测试和既有实验/审阅已有反馈。�
 
 小样本可以验证功能路径、发现具体错误，但不足以证明广泛质量提升或稳定性能。后续默认验收目标是新能力真正进入正式应用并可使用，不是每项能力都产出效果对比脚本。
 
-### 8.4 最小收尾与下一入口
+### 8.4 收尾证据更新
 
-1. 接收 M6 阶段 Java 回归已有结果；未执行时再完成一次必要检查。
-2. 来源配额/token 预算开启状态的正式接口证据尚未在当前资料中确认。先复用用户已有 Trace；确实没有时，只补少量功能接入请求，观察配置、选择与引用约束，不做效果 A/B。
-3. 文档落地与 Git 收尾提交；提交、push、tag 分开确认。
+来源配额、token 预算、空上下文、工具后预算以及历史一致性已完成真实接入检查，traceId 与边界见 CURRENT-STATUS.md。不得继续标记“缺少开启状态证据”，不重复请求或已有评测。归档提交、临时配置恢复和历史阶段汇总的未确认事项按已有材料核对。
 
-满足后结束 M6，进入 M7-1 模型注册与请求级模型选择。不重跑既有 15 题或三例审阅。
+M7 已实际推进，当前入口为 M7 最小收尾后进入 M8；不是重新开始 M7-1。提交、push、tag 分开记录。
 
 ---
 
 ## 9. M7～M11
 
-### M7：DeepSeek + AutoDL 多模型
+### M7：DeepSeek + AutoDL 多模型（当前阶段）
 
-同一 Java Agent、Tool、RAG 和接口支持多个 `modelId`。AutoDL 优先使用 vLLM 暴露 OpenAI-compatible API；实例关闭时允许自部署模型 `UNAVAILABLE`，不能拖垮 DeepSeek 主链。
+目标是在同一 `/agent/ask`、Spring AI Agent、Tool、RAG 和治理链路中选择生成模型。当前已接入两个真实服务，不是同一模型的两个别名。
 
-首单元从模型注册和请求级生成模型选择开始；必须复用现有正式 Agent、Tool、RAG 与治理，不能复制第二套业务链。区分业务 modelId、供应商模型名与能力/可用状态。不要把回答模型切换默认扩展为 Embedding、查询改写或重排模型切换。
+#### M7-1：模型注册与请求级选择
 
-按新增功能安排自动测试与真实 API 接入检查。首单元验证当时已接入的真实模型；后续 AutoDL 单元需用真实服务验证调用和所需 Tool Calling，不能只凭 OpenAI-compatible 名称或 mock 测试认定兼容。不可用模型的失败行为应明确，不默默换模型后声称按用户选择执行。
+- 已实现业务 `modelId`、模型注册、默认选择与显式选择，复用原主链。
+- 默认业务标识 `deepseek-main`；自部署标识 `autodl-qwen`。业务标识与供应商实际模型名分离。
+- 未知、禁用或能力不支持的选择显式失败；运行调用失败不默默切换其他模型。
+- 响应及 `MODEL_EXECUTION` 记录 requestedModelId、modelId、provider、configuredModel、reportedModel、providerResponseId、callStatus。配置值不能代替服务端返回值作为实际调用证据。
+- 用户反馈相关自动测试通过；未回传本单元独立提交哈希，不编造。
 
-LoRA / QLoRA 是可选增强，只有明确任务差距和可用评测依据时才考虑；不把训练 loss 当成项目成功标准，不将训练设为多模型接入前置条件。
+#### M7-2A：AutoDL 部署与协议验证
+
+- 已部署 `Qwen/Qwen3.8-27B-FP8`，服务名 `qwen3.8-27b-fp8-agent`。
+- 模型固定 revision：`c3a462cc3d38cf351f3b26cbd763469eeb74ef81`。
+- 环境反馈：Python 3.12、vLLM 0.30.0、PyTorch 2.13.0+cu130、Transformers 5.23.0、huggingface-hub 2.4.0；GPU 报告 RTX 4090、计算能力 8.9。产品显存档位不能代替真实设备信息。
+- vLLM 监听 AutoDL 本机 `127.0.0.1:8000`，开发机通过 SSH 映射到 `127.0.0.1:18000`；自设 API key 由环境注入。
+- `/v1/models`、普通聊天、结构化 tool_calls、人工回填工具结果后的最终回答均已验证。协议工具样例不等于 Java 真实工具执行，后者见 M7-2B。
+- 已处理下载网络/Xet、CUDA 编译与链接环境、ninja/PATH 等阻塞；模型启动成功。协议请求顶层必须是对象，不能直接提交 messages 数组。
+- 已确认提交 `b7e4a79`；部署记录为 `docs/M7-2A-AUTODL.md`、脚本为 `deployment/autodl/start-vllm.sh`。后续修复是否全部落入此脚本需以最新工作区为准。
+
+#### M7-2B：接入正式治理链路
+
+- 已实现 `AutodlModelProperties` 与独立 Qwen 客户端，复用现有 ToolCallingManager、工具治理、RAG、引用审计和日志保存。
+- 回答模型选择不改变查询改写、Embedding 或重排配置；Embedding 仍为 Ollama bge-m3 + Qdrant。
+- 调用排障中采用 HTTP/1.1；针对约 45 秒取消，指导将 Qwen 读取超时调整为 90000 ms，随后实际请求成功。当前生效环境变量仍应由运行配置确认，不能从响应倒推出配置值。
+- 读取超时不等于 Agent 整体硬截止时间；工具回合可产生多次模型请求。M8 再设计异步任务和整体生命周期。
+- 自动测试：用户明确反馈全部通过，沿用；没有最新总数，不累加历史批次，不把 M5 的 112 项当作本轮结果。
+
+| 正式验证 | traceId | 实际证据 |
+|---|---|---|
+| Qwen + RAG | e1e1b204 | RETURNED；reportedModel=qwen3.8-27b-fp8-agent；响应 ID chatcmpl-9aa5d7b60d3047df；VALID_IDS、unknownIds=[]；usedTool=false |
+| Qwen + Java 工具 | 84cab609 | getTableSchema SUCCESS；RETURNED；响应 ID chatcmpl-a01f06aad41ba899；回答 trace_id varchar(64)、created_time datetime(3)，均非空 |
+
+RAG 请求 `SPRING_AI_CHAT.costMs=55468`，工具请求为 12089；是单次运行观察，不作为性能基线。前者计时包含前置知识准备。工具回答 NO_CITATIONS 合理，工具事实不要求伪造知识引用；semanticSupportChecked=false 继续保留。
+
+已确认提交 `bb16096 feat(model): integrate AutoDL Qwen into the governed Agent pipeline`，6 文件、373 插入、8 删除；包括 `docs/M7-2B-AUTODL-AGENT.md`、`AutodlModelProperties.java`、`AgentModelConfigurationTest.java`。提交记录不等于推送或标签已完成。
+
+#### M7 收尾边界与下一阶段
+
+正式成功路径已通过，不重复测试。尚未回传的记录：
+
+1. `/agent/runs/84cab609` 的历史回答、MODEL_EXECUTION 与工具结果一致性。
+2. SSH 隧道断开后显式选择 Qwen 的失败状态及无静默回退。
+3. 同时默认 DeepSeek 仍可用，之后恢复隧道。
+
+已有结果直接沿用；只补确实缺少的记录。M6 既有真实验证也不因文档滞后重做。当前阶段表述为“M7 核心能力已接入并提交，阶段收尾待确认”，不能写成整体封版或推送完成。
+
+完成收尾后进入 M8 异步任务与 SSE。LoRA / QLoRA 仍为可选增强，不是 M7 完成或 M8 开始的前置条件；不新增自动 Judge、小样本反复评分或强制微调单元。
 
 ### M8：异步任务 + SSE
 
@@ -384,7 +423,20 @@ Actuator / Micrometer、模型/Tool/RAG 指标、token usage、Tracing、P50/P95
 
 ### M11：部署与作品集
 
-后端、Vue、向量库和 MySQL Compose；CI；健康检查；HTTPS；公开 Demo；README；架构图；评测与 RAG 报告；简历和面试材料。
+部署目标：一台常驻应用服务器运行 Java、Vue/Nginx、MySQL、Qdrant，Ollama bge-m3 可同机运行；AutoDL GPU 实例独立运行 vLLM。Ollama 在 CPU 上的实际延迟和内存需届时检查，资源不足可单独部署，不预先购买额外 GPU。
+
+- 用 Docker Compose 描述应用依赖、私有网络、持久化卷、健康检查、版本与重启策略；CI、HTTPS、公开 Demo 和作品集随后落地。
+- 同一 Compose 网络内使用服务名：MySQL `mysql:3306`、Ollama `http://ollama:11434`、Qdrant 按客户端协议使用 `qdrant:6334`（gRPC）或 `http://qdrant:6333`（REST）。这些是规划示例，实际服务名与配置键以部署文件和源码为准。
+- 容器内 localhost 指向当前容器。Java 宿主机运行和容器运行采用不同连接配置，不把 Windows 的 3307 映射端口搬成容器内端口。
+- AutoDL baseUrl 是 Java 能到达的模型服务根地址，不是任意应用服务器 IP，也不在当前配置中追加 /v1。若模型仍只绑定 AutoDL 回环地址，单改 IP 无效。
+- 采用受控私网、受管理隧道或带认证的 HTTPS 代理连通 AutoDL；不能依赖开发者 Windows SSH 窗口。容器化时需要设计隧道的网络可达性与生命周期。
+- MySQL 持久化业务数据；Flyway 初始化/升级结构，不自动搬迁本地历史记录。需要历史数据时单独备份恢复。
+- Qdrant 持久化向量和 payload；迁移时选择一致的快照恢复或从原始知识重建索引。知识 manifest、内容与本项目索引状态须一起协调，不能把旧状态文件直接指向空集合。
+- Ollama 持久化模型目录；服务器需拉取同一 bge-m3 模型版本或迁移模型文件。切换回答模型不改变 Embedding；若改变 Embedding 模型/版本，不能仅凭同为 1024 维就沿用旧向量。
+- 只公开产品入口；数据库、向量库和 Ollama 不直接暴露到公网。密钥使用部署环境配置，不提交 Git；配置数据库业务账号、备份及恢复验证。
+- 部署验收覆盖真实 ask、工具、RAG、历史保存与重启后数据保留；不重做模型质量评测。公开数据源与只读诊断范围须明确。
+
+本节是部署计划，尚未执行；不因此把 M11 提前为当前开发单元。README、架构图、既有评测/RAG 报告、简历和面试材料随部署收尾。
 
 ---
 
@@ -434,3 +486,5 @@ Actuator / Micrometer、模型/Tool/RAG 指标、token usage、Tracing、P50/P95
 2026-10-20：更新 M5 验收状态与 M6 入口；更正旧编排、重复接口和规则检索直连的过时架构描述；补充预算与引用审计的能力边界；取消机械重复评测和未执行的扩题要求。M7～M11 的顺序与核心目标保留，不因单个回答质量问题调整整体路线。
 
 2026-11-08：补齐 M6 已实现能力、已有证据与未确认收尾项；明确自动测试、真实接入验证和效果评测的职责。用户要求减少的是重复效果比较，不是正常测试和正式链路验收。下一功能入口为 M7-1，M7～M11 顺序保持。
+
+2026-11-14：M7 按实际模型选择、协议验证与正式接口结果展开，记录已提交与未确认边界；M11 补充应用/模型分离部署、容器地址、数据迁移与持久化。保留 M8→M9→M10→M11 顺序，不把部署计划写成已实施。
