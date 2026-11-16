@@ -44,6 +44,17 @@ echo "CUDA_HOME=${CUDA_HOME}"
 echo "CUDA Runtime 库目录=${CUDA_RUNTIME_LIB_DIR}"
 
 VLLM_BIN="${VLLM_BIN:-/root/autodl-tmp/envs/agent-qwen38/bin/vllm}"
+# 使用绝对路径启动 vLLM，并不会自动把其环境加入 PATH。
+# FlashInfer 等组件还需要通过 PATH 查找 ninja 等子进程命令。
+VLLM_ENV_BIN="$(dirname "${VLLM_BIN}")"
+export PATH="${VLLM_ENV_BIN}:${PATH}"
+
+# 提前检查，避免加载完模型后才发现构建工具不可用。
+if ! command -v ninja >/dev/null 2>&1; then
+  echo "找不到 ninja，请在 agent-qwen38 环境中安装 ninja。" >&2
+  exit 1
+fi
+
 MODEL_DIR="${MODEL_DIR:-/root/autodl-tmp/models/Qwen3.8-27B-FP8}"
 SERVED_MODEL_NAME="qwen3.8-27b-fp8-agent"
 

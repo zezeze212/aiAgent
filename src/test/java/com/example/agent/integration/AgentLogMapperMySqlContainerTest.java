@@ -4,8 +4,11 @@ import com.example.agent.dto.AgentRunStatsResponse;
 import com.example.agent.dto.ToolStatsItem;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
+import com.example.agent.entity.AgentTask;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.example.agent.mapper.AgentTaskMapper;
+import com.example.agent.task.AgentTaskStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.mybatis.spring.annotation.MapperScan;
 import org.junit.jupiter.api.Test;
@@ -65,6 +68,9 @@ class AgentLogMapperMySqlContainerTest {
 
 	@Autowired
 	private AgentStepLogMapper agentStepLogMapper;
+
+	@Autowired
+	private AgentTaskMapper agentTaskMapper;
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
@@ -336,6 +342,51 @@ class AgentLogMapperMySqlContainerTest {
 		assertThat(value).as("属性 %s 应为字符串", propertyName).isInstanceOf(String.class);
 
 		return (String) value;
+	}
+
+	@Test
+	void shouldPersistTaskAndProtectStateTransitions() {
+		String taskId = UUID.randomUUID().toString().replace("-", "");
+
+		AgentTask task = new AgentTask();
+		task.setTaskId(taskId);
+		task.setModelId("deepseek-main");
+		task.setStatus(AgentTaskStatus.QUEUED);
+
+		assertThat(agentTaskMapper.insert(task)).isEqualTo(1);
+
+		AgentTask queued = agentTaskMapper.selectById(taskId);
+		assertThat(queued.getStatus()).isEqualTo(AgentTaskStatus.QUEUED);
+		assertThat(queued.getCreatedTime()).isNotNull();
+
+		// 同一任务只能有一次 QUEUED -> RUNNING。
+		assertThat(agentTaskMapper.markRunning(taskId)).isEqualTo(1);
+		assertThat(agentTaskMapper.markRunning(taskId)).isZero();
+
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.SUCCEEDED, "task-test-trace", null, null))
+			.isEqualTo(1);
+
+		// 迟到的失败不能覆盖已完成状态。
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.FAILED, "task-test-trace", "LATE_ERROR", "迟到错误"))
+			.isZero();
+
+		AgentTask finished = agentTaskMapper.selectById(taskId);
+		assertThat(finished.getStatus()).isEqualTo(AgentTaskStatus.SUCCEEDED);
+		assertThat(finished.getTraceId()).isEqualTo("task-test-trace");
+		assertThat(finished.getStartedTime()).isNotNull();
+		assertThat(finished.getFinishedTime()).isNotNull();
+
+		// 被拒绝的任务不能再进入执行状态。
+		String rejectedId = UUID.randomUUID().toString().replace("-", "");
+		AgentTask rejected = new AgentTask();
+		rejected.setTaskId(rejectedId);
+		rejected.setModelId("deepseek-main");
+		rejected.setStatus(AgentTaskStatus.QUEUED);
+
+		agentTaskMapper.insert(rejected);
+		assertThat(agentTaskMapper.markRejected(rejectedId)).isEqualTo(1);
+		assertThat(agentTaskMapper.markRunning(rejectedId)).isZero();
+		assertThat(agentTaskMapper.selectById(rejectedId).getStatus()).isEqualTo(AgentTaskStatus.REJECTED);
 	}
 
 }

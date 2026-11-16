@@ -94,12 +94,9 @@ class AgentModelRoutingTest {
 		assertThat(response.getModelExecution().providerResponseId()).isEqualTo("response-test");
 
 		verify(request).system(SpringAiToolChatService.SYSTEM_PROMPT);
-// 明确匹配 List<ToolCallback>，避免与其他 toolCallbacks 重载产生歧义。
-		verify(request).toolCallbacks(
-				ArgumentMatchers.<List<ToolCallback>>argThat(callbacks ->
-						callbacks.stream().anyMatch(callback ->
-								"getTableSchema".equals(
-										callback.getToolDefinition().name()))));
+		// 明确匹配 List<ToolCallback>，避免与其他 toolCallbacks 重载产生歧义。
+		verify(request).toolCallbacks(ArgumentMatchers.<List<ToolCallback>>argThat(callbacks -> callbacks.stream()
+			.anyMatch(callback -> "getTableSchema".equals(callback.getToolDefinition().name()))));
 		verify(request).toolContext(
 				argThat(context -> context.get(SpringAiToolRunContext.CONTEXT_KEY) instanceof SpringAiToolRunContext));
 
