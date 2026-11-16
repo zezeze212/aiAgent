@@ -32,44 +32,32 @@ class FlywayMySqlContainerTest {
 
 	@Test
 	void shouldApplyFlywayMigrationsToRealMySqlOnlyOnce() throws SQLException {
-
 		Flyway flyway = Flyway.configure()
 			.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
 			.locations("classpath:db/migration")
 			.cleanDisabled(true)
 			.load();
 
-		/*
-		 * 当前空库应依次执行：
-		 *
-		 * V1：创建 Run / Step 日志表 V2：为 Step 增加工具状态和错误码
-		 */
+		// V1：Run/Step；V2：工具状态；V3：异步任务。
 		MigrateResult firstResult = flyway.migrate();
 
-		assertThat(firstResult.migrationsExecuted).as("第一次启动应执行 V1 和 V2").isEqualTo(2);
+		assertThat(firstResult.migrationsExecuted).as("第一次启动应执行 V1、V2、V3").isEqualTo(3);
 
-		Set<String> tableNames = queryTableNames();
+		assertThat(queryTableNames()).contains("agent_run_log", "agent_step_log", "agent_task",
+				"flyway_schema_history");
 
-		assertThat(tableNames).contains("agent_run_log", "agent_step_log", "flyway_schema_history");
+		for (String version : new String[] { "1", "2", "3" }) {
+			assertThat(countSuccessfulMigration(version)).isEqualTo(1);
+		}
 
-		assertThat(countSuccessfulMigration("1")).as("V1 应且只能存在一条成功记录").isEqualTo(1);
+		assertThat(queryStepLogColumns()).contains("tool_status", "error_code");
 
-		assertThat(countSuccessfulMigration("2")).as("V2 应且只能存在一条成功记录").isEqualTo(1);
-
-		Set<String> stepColumns = queryStepLogColumns();
-
-		assertThat(stepColumns).contains("tool_status", "error_code");
-
-		/*
-		 * 数据库已经处于最新版本，再次 migrate 不应该重复执行 V1/V2。
-		 */
 		MigrateResult secondResult = flyway.migrate();
+		assertThat(secondResult.migrationsExecuted).isZero();
 
-		assertThat(secondResult.migrationsExecuted).as("第二次迁移不应重复执行历史版本").isZero();
-
-		assertThat(countSuccessfulMigration("1")).isEqualTo(1);
-
-		assertThat(countSuccessfulMigration("2")).isEqualTo(1);
+		for (String version : new String[] { "1", "2", "3" }) {
+			assertThat(countSuccessfulMigration(version)).isEqualTo(1);
+		}
 	}
 
 	private Set<String> queryTableNames() throws SQLException {

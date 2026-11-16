@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.agent.mapper.AgentTaskMapper">
+
+    <insert id="insert">
+        INSERT INTO agent_task
+        (task_id, requested_model_id, model_id, status)
+        VALUES
+        (#{taskId}, #{requestedModelId}, #{modelId}, 'QUEUED')
+    </insert>
+
+    <select id="selectById"
+            resultType="com.example.agent.entity.AgentTask">
+        SELECT task_id, requested_model_id, model_id, status,
+        trace_id, error_code, error_message,
+        created_time, started_time, finished_time
+        FROM agent_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <update id="markRunning">
+        UPDATE agent_task
+        SET status = 'RUNNING',
+        started_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+        AND status = 'QUEUED'
+    </update>
+
+    <update id="markRejected">
+        UPDATE agent_task
+        SET status = 'REJECTED',
+        error_code = 'TASK_CAPACITY_EXCEEDED',
+        error_message = '任务执行器暂时无法接收请求，请稍后重试',
+        finished_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+        AND status = 'QUEUED'
+    </update>
+
+    <update id="finish">
+        UPDATE agent_task
+        SET status = #{status},
+        trace_id = #{traceId},
+        error_code = #{errorCode},
+        error_message = #{errorMessage},
+        finished_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+        AND status = 'RUNNING'
+        AND #{status} IN ('SUCCEEDED', 'FAILED')
+    </update>
+
+</mapper>
