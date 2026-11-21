@@ -19,27 +19,22 @@ public class AgentTaskController {
 	private final AgentTaskService taskService;
 
 	@PostMapping
-	public ResponseEntity<Result<AgentTask>> submit(
-			@RequestBody AgentAskRequest request,
-			@RequestHeader(value = "Idempotency-Key", required = false)
-			String idempotencyKey) {
+	public ResponseEntity<Result<AgentTask>> submit(@RequestBody AgentAskRequest request,
+			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
 		AgentTask task = taskService.submit(request, idempotencyKey);
 
 		if (task.getStatus() == AgentTaskStatus.REJECTED) {
 			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-					.body(new Result<>(503,
-							"任务执行器未接收该任务；相同幂等键不会重新投递", task));
+				.body(new Result<>(503, "任务执行器未接收该任务；相同幂等键不会重新投递", task));
 		}
 
-		if (task.getStatus() == AgentTaskStatus.SUCCEEDED
-				|| task.getStatus() == AgentTaskStatus.FAILED) {
+		if (task.getStatus() == AgentTaskStatus.SUCCEEDED || task.getStatus() == AgentTaskStatus.FAILED) {
 			// 返回已有终态任务，是否执行成功由 data.status 表达。
 			return ResponseEntity.ok(Result.success(task));
 		}
 
-		return ResponseEntity.status(HttpStatus.ACCEPTED)
-				.body(new Result<>(202, "accepted", task));
+		return ResponseEntity.status(HttpStatus.ACCEPTED).body(new Result<>(202, "accepted", task));
 	}
 
 	@GetMapping("/{taskId}")
@@ -48,10 +43,8 @@ public class AgentTaskController {
 	}
 
 	@ExceptionHandler(BusinessException.class)
-	public ResponseEntity<Result<Void>> handleTaskBusinessException(
-			BusinessException e) {
-		return ResponseEntity.status(e.getCode())
-				.body(Result.fail(e.getCode(), e.getMessage()));
+	public ResponseEntity<Result<Void>> handleTaskBusinessException(BusinessException e) {
+		return ResponseEntity.status(e.getCode()).body(Result.fail(e.getCode(), e.getMessage()));
 	}
 
 }

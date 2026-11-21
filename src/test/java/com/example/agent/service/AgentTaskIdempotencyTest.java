@@ -25,162 +25,156 @@ import static org.mockito.Mockito.*;
 
 class AgentTaskIdempotencyTest {
 
-    private static final String KEY = "m8-idempotency-test-001";
+	private static final String KEY = "m8-idempotency-test-001";
 
-    private AgentTaskMapper tasks;
-    private AgentModelRegistry registry;
-    private SpringAiToolChatService chat;
-    private TaskExecutor executor;
-    private AgentTaskService service;
+	private AgentTaskMapper tasks;
 
-    @BeforeEach
-    void setUp() {
-        tasks = mock(AgentTaskMapper.class);
-        registry = mock(AgentModelRegistry.class);
-        chat = mock(SpringAiToolChatService.class);
-        executor = mock(TaskExecutor.class);
+	private AgentModelRegistry registry;
 
-        service = new AgentTaskService(tasks, mock(AgentRunLogMapper.class),
-                registry, chat, executor);
+	private SpringAiToolChatService chat;
 
-        when(registry.resolve(nullable(String.class))).thenReturn(
-                new AgentModelRegistry.Entry(
-                        "deepseek-main", "test", "test-model",
-                        true, true, mock(ChatClient.class)));
+	private TaskExecutor executor;
 
-        when(tasks.insert(any())).thenReturn(1);
-    }
+	private AgentTaskService service;
 
-    @Test
-    void shouldCreateOnceAndReuseSameTask() {
-        AtomicReference<AgentTask> saved = new AtomicReference<>();
+	@BeforeEach
+	void setUp() {
+		tasks = mock(AgentTaskMapper.class);
+		registry = mock(AgentModelRegistry.class);
+		chat = mock(SpringAiToolChatService.class);
+		executor = mock(TaskExecutor.class);
 
-        when(tasks.selectByIdempotencyKey(KEY))
-                .thenAnswer(invocation -> saved.get());
-        when(tasks.insert(any())).thenAnswer(invocation -> {
-            saved.set(invocation.getArgument(0));
-            return 1;
-        });
-        when(tasks.selectById(anyString()))
-                .thenAnswer(invocation -> saved.get());
+		service = new AgentTaskService(tasks, mock(AgentRunLogMapper.class), registry, chat, executor);
 
-        AgentTask first = service.submit(request(), KEY);
-        AgentTask second = service.submit(request(), KEY);
+		when(registry.resolve(nullable(String.class))).thenReturn(new AgentModelRegistry.Entry("deepseek-main", "test",
+				"test-model", true, true, mock(ChatClient.class)));
 
-        assertThat(second.getTaskId()).isEqualTo(first.getTaskId());
-        assertThat(first.getIdempotencyKey()).isEqualTo(KEY);
-        assertThat(first.getRequestFingerprint()).hasSize(64);
+		when(tasks.insert(any())).thenReturn(1);
+	}
 
-        verify(tasks, times(1)).insert(any());
-        verify(executor, times(1)).execute(any(Runnable.class));
-        verify(registry, times(1)).resolve(null);
-        verifyNoInteractions(chat);
-    }
+	@Test
+	void shouldCreateOnceAndReuseSameTask() {
+		AtomicReference<AgentTask> saved = new AtomicReference<>();
 
-    @ParameterizedTest
-    @EnumSource(AgentTaskStatus.class)
-    void shouldReuseEveryExistingStatusWithoutRedispatch(AgentTaskStatus status) {
-        AgentTask existing = existing(status);
-        when(tasks.selectByIdempotencyKey(KEY)).thenReturn(existing);
+		when(tasks.selectByIdempotencyKey(KEY)).thenAnswer(invocation -> saved.get());
+		when(tasks.insert(any())).thenAnswer(invocation -> {
+			saved.set(invocation.getArgument(0));
+			return 1;
+		});
+		when(tasks.selectById(anyString())).thenAnswer(invocation -> saved.get());
 
-        assertThat(service.submit(request(), KEY)).isSameAs(existing);
+		AgentTask first = service.submit(request(), KEY);
+		AgentTask second = service.submit(request(), KEY);
 
-        verify(tasks, never()).insert(any());
-        verifyNoInteractions(registry, executor, chat);
-    }
+		assertThat(second.getTaskId()).isEqualTo(first.getTaskId());
+		assertThat(first.getIdempotencyKey()).isEqualTo(KEY);
+		assertThat(first.getRequestFingerprint()).hasSize(64);
 
-    @Test
-    void shouldRejectChangedMessageOrModelSelection() {
-        when(tasks.selectByIdempotencyKey(KEY))
-                .thenReturn(existing(AgentTaskStatus.SUCCEEDED));
+		verify(tasks, times(1)).insert(any());
+		verify(executor, times(1)).execute(any(Runnable.class));
+		verify(registry, times(1)).resolve(null);
+		verifyNoInteractions(chat);
+	}
 
-        AgentAskRequest changedMessage = request();
-        changedMessage.setMessage("解释 Java 抽象类");
+	@ParameterizedTest
+	@EnumSource(AgentTaskStatus.class)
+	void shouldReuseEveryExistingStatusWithoutRedispatch(AgentTaskStatus status) {
+		AgentTask existing = existing(status);
+		when(tasks.selectByIdempotencyKey(KEY)).thenReturn(existing);
 
-        AgentAskRequest changedModel = request();
-        changedModel.setModelId("deepseek-main");
+		assertThat(service.submit(request(), KEY)).isSameAs(existing);
 
-        // 未指定模型与显式指定默认模型，按本项目契约属于不同请求。
-        for (AgentAskRequest changed : List.of(changedMessage, changedModel)) {
-            assertThatThrownBy(() -> service.submit(changed, KEY))
-                    .isInstanceOfSatisfying(BusinessException.class,
-                            e -> assertThat(e.getCode()).isEqualTo(409));
-        }
+		verify(tasks, never()).insert(any());
+		verifyNoInteractions(registry, executor, chat);
+	}
 
-        verify(tasks, never()).insert(any());
-        verifyNoInteractions(registry, executor, chat);
-    }
+	@Test
+	void shouldRejectChangedMessageOrModelSelection() {
+		when(tasks.selectByIdempotencyKey(KEY)).thenReturn(existing(AgentTaskStatus.SUCCEEDED));
 
-    @Test
-    void shouldReadWinnerAfterConcurrentInsertConflict() {
-        AgentTask winner = existing(AgentTaskStatus.RUNNING);
+		AgentAskRequest changedMessage = request();
+		changedMessage.setMessage("解释 Java 抽象类");
 
-        // 首次查询没有记录；插入冲突后，读取到另一个请求创建的任务。
-        when(tasks.selectByIdempotencyKey(KEY)).thenReturn(null, winner);
-        when(tasks.insert(any())).thenThrow(new DuplicateKeyException("duplicate"));
+		AgentAskRequest changedModel = request();
+		changedModel.setModelId("deepseek-main");
 
-        assertThat(service.submit(request(), KEY)).isSameAs(winner);
+		// 未指定模型与显式指定默认模型，按本项目契约属于不同请求。
+		for (AgentAskRequest changed : List.of(changedMessage, changedModel)) {
+			assertThatThrownBy(() -> service.submit(changed, KEY)).isInstanceOfSatisfying(BusinessException.class,
+					e -> assertThat(e.getCode()).isEqualTo(409));
+		}
 
-        verify(tasks, times(2)).selectByIdempotencyKey(KEY);
-        verifyNoInteractions(executor, chat);
-    }
+		verify(tasks, never()).insert(any());
+		verifyNoInteractions(registry, executor, chat);
+	}
 
-    @Test
-    void shouldNotHideUnrelatedDuplicateKeyFailure() {
-        DuplicateKeyException failure = new DuplicateKeyException("other key");
-        when(tasks.insert(any())).thenThrow(failure);
+	@Test
+	void shouldReadWinnerAfterConcurrentInsertConflict() {
+		AgentTask winner = existing(AgentTaskStatus.RUNNING);
 
-        // 两次幂等查询均没有对应记录，不能伪装成一次成功重放。
-        assertThatThrownBy(() -> service.submit(request(), KEY))
-                .isSameAs(failure);
+		// 首次查询没有记录；插入冲突后，读取到另一个请求创建的任务。
+		when(tasks.selectByIdempotencyKey(KEY)).thenReturn(null, winner);
+		when(tasks.insert(any())).thenThrow(new DuplicateKeyException("duplicate"));
 
-        verifyNoInteractions(executor, chat);
-    }
+		assertThat(service.submit(request(), KEY)).isSameAs(winner);
 
-    @Test
-    void shouldKeepCreatingNewTasksWhenKeyIsMissing() {
-        when(tasks.selectById(anyString())).thenAnswer(invocation -> {
-            AgentTask task = new AgentTask();
-            task.setTaskId(invocation.getArgument(0));
-            task.setStatus(AgentTaskStatus.QUEUED);
-            return task;
-        });
+		verify(tasks, times(2)).selectByIdempotencyKey(KEY);
+		verifyNoInteractions(executor, chat);
+	}
 
-        AgentTask first = service.submit(request());
-        AgentTask second = service.submit(request());
+	@Test
+	void shouldNotHideUnrelatedDuplicateKeyFailure() {
+		DuplicateKeyException failure = new DuplicateKeyException("other key");
+		when(tasks.insert(any())).thenThrow(failure);
 
-        assertThat(first.getTaskId()).isNotEqualTo(second.getTaskId());
-        verify(tasks, times(2)).insert(any());
-        verify(executor, times(2)).execute(any(Runnable.class));
-        verify(tasks, never()).selectByIdempotencyKey(anyString());
-    }
+		// 两次幂等查询均没有对应记录，不能伪装成一次成功重放。
+		assertThatThrownBy(() -> service.submit(request(), KEY)).isSameAs(failure);
 
-    @Test
-    void shouldRejectInvalidKeysBeforeCreatingTask() {
-        for (String key : List.of("", "bad key", "x".repeat(129))) {
-            assertThatThrownBy(() -> service.submit(request(), key))
-                    .isInstanceOfSatisfying(BusinessException.class,
-                            e -> assertThat(e.getCode()).isEqualTo(400));
-        }
+		verifyNoInteractions(executor, chat);
+	}
 
-        verifyNoInteractions(tasks, registry, executor, chat);
-    }
+	@Test
+	void shouldKeepCreatingNewTasksWhenKeyIsMissing() {
+		when(tasks.selectById(anyString())).thenAnswer(invocation -> {
+			AgentTask task = new AgentTask();
+			task.setTaskId(invocation.getArgument(0));
+			task.setStatus(AgentTaskStatus.QUEUED);
+			return task;
+		});
 
-    private AgentTask existing(AgentTaskStatus status) {
-        AgentTask task = new AgentTask();
-        task.setTaskId("existing-task");
-        task.setIdempotencyKey(KEY);
-        task.setRequestFingerprint(
-                TaskRequestFingerprint.calculate(request().getMessage(), null));
-        task.setModelId("deepseek-main");
-        task.setStatus(status);
-        return task;
-    }
+		AgentTask first = service.submit(request());
+		AgentTask second = service.submit(request());
 
-    private AgentAskRequest request() {
-        AgentAskRequest request = new AgentAskRequest();
-        request.setMessage("解释 Java 接口");
-        return request;
-    }
+		assertThat(first.getTaskId()).isNotEqualTo(second.getTaskId());
+		verify(tasks, times(2)).insert(any());
+		verify(executor, times(2)).execute(any(Runnable.class));
+		verify(tasks, never()).selectByIdempotencyKey(anyString());
+	}
+
+	@Test
+	void shouldRejectInvalidKeysBeforeCreatingTask() {
+		for (String key : List.of("", "bad key", "x".repeat(129))) {
+			assertThatThrownBy(() -> service.submit(request(), key)).isInstanceOfSatisfying(BusinessException.class,
+					e -> assertThat(e.getCode()).isEqualTo(400));
+		}
+
+		verifyNoInteractions(tasks, registry, executor, chat);
+	}
+
+	private AgentTask existing(AgentTaskStatus status) {
+		AgentTask task = new AgentTask();
+		task.setTaskId("existing-task");
+		task.setIdempotencyKey(KEY);
+		task.setRequestFingerprint(TaskRequestFingerprint.calculate(request().getMessage(), null));
+		task.setModelId("deepseek-main");
+		task.setStatus(status);
+		return task;
+	}
+
+	private AgentAskRequest request() {
+		AgentAskRequest request = new AgentAskRequest();
+		request.setMessage("解释 Java 接口");
+		return request;
+	}
 
 }

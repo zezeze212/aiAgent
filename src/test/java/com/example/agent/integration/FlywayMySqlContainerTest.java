@@ -33,21 +33,18 @@ class FlywayMySqlContainerTest {
 	@Test
 	void shouldApplyFlywayMigrationsToRealMySqlOnlyOnce() throws SQLException {
 		Flyway flyway = Flyway.configure()
-				.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
-				.locations("classpath:db/migration")
-				.cleanDisabled(true)
-				.load();
+			.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
+			.locations("classpath:db/migration")
+			.cleanDisabled(true)
+			.load();
 
 		// V1：Run/Step；V2：工具状态；V3：任务；V4：提交幂等。
 		MigrateResult firstResult = flyway.migrate();
 
-		assertThat(firstResult.migrationsExecuted)
-				.as("第一次启动应执行 V1、V2、V3、V4")
-				.isEqualTo(4);
+		assertThat(firstResult.migrationsExecuted).as("第一次启动应执行 V1、V2、V3、V4").isEqualTo(4);
 
-		assertThat(queryTableNames()).contains(
-				"agent_run_log", "agent_step_log",
-				"agent_task", "flyway_schema_history");
+		assertThat(queryTableNames()).contains("agent_run_log", "agent_step_log", "agent_task",
+				"flyway_schema_history");
 
 		for (String version : new String[] { "1", "2", "3", "4" }) {
 			assertThat(countSuccessfulMigration(version)).isEqualTo(1);
