@@ -25,16 +25,16 @@ public class AgentTaskController {
 		AgentTask task = taskService.submit(request, idempotencyKey);
 
 		if (task.getStatus() == AgentTaskStatus.REJECTED) {
-			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-				.body(new Result<>(503, "任务执行器未接收该任务；相同幂等键不会重新投递", task));
+			return ResponseEntity.status(503).body(new Result<>(503, "任务执行器未接收该任务；相同幂等键不会重新投递", task));
 		}
 
-		if (task.getStatus() == AgentTaskStatus.SUCCEEDED || task.getStatus() == AgentTaskStatus.FAILED) {
-			// 返回已有终态任务，是否执行成功由 data.status 表达。
+		if (task.getStatus() == AgentTaskStatus.SUCCEEDED || task.getStatus() == AgentTaskStatus.FAILED
+				|| task.getStatus() == AgentTaskStatus.TIMED_OUT) {
+
 			return ResponseEntity.ok(Result.success(task));
 		}
 
-		return ResponseEntity.status(HttpStatus.ACCEPTED).body(new Result<>(202, "accepted", task));
+		return ResponseEntity.status(202).body(new Result<>(202, "accepted", task));
 	}
 
 	@GetMapping("/{taskId}")

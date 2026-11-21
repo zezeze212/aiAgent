@@ -38,4 +38,15 @@ public class AgentTask {
 
 	private LocalDateTime finishedTime;
 
+	/**
+	 * 任务整体截止时间，由数据库在创建任务时计算。 历史任务可能为空。
+	 */
+	private LocalDateTime deadlineAt;
+
+	/**
+	 * 创建任务时使用的服务端预算。 只作为 INSERT 参数，不单独持久化，也不向接口返回。
+	 */
+	@JsonIgnore
+	private int timeoutSeconds;
+
 }

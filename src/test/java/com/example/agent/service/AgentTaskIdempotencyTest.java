@@ -44,7 +44,7 @@ class AgentTaskIdempotencyTest {
 		chat = mock(SpringAiToolChatService.class);
 		executor = mock(TaskExecutor.class);
 
-		service = new AgentTaskService(tasks, mock(AgentRunLogMapper.class), registry, chat, executor);
+		service = new AgentTaskService(tasks, mock(AgentRunLogMapper.class), registry, chat, executor, 120);
 
 		when(registry.resolve(nullable(String.class))).thenReturn(new AgentModelRegistry.Entry("deepseek-main", "test",
 				"test-model", true, true, mock(ChatClient.class)));

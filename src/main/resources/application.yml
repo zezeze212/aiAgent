@@ -48,6 +48,11 @@ mybatis:
 agent:
   max-execution-time-ms: 120000
 
+  task:
+    timeout-seconds: ${AI_AGENT_TASK_TIMEOUT_SECONDS:120}
+    sweep-delay-ms: ${AI_AGENT_TASK_SWEEP_DELAY_MS:1000}
+    sweep-enabled: true
+
   models:
     default-id: ${AI_AGENT_DEFAULT_MODEL_ID:deepseek-main}
 

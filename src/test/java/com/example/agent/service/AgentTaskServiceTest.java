@@ -12,6 +12,7 @@ import com.example.agent.task.AgentTaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
@@ -45,7 +46,7 @@ class AgentTaskServiceTest {
 				List.of(new AgentModelRegistry.Entry("deepseek-main", "test", "test-model", true, true,
 						mock(ChatClient.class))));
 
-		service = new AgentTaskService(tasks, runs, registry, chat, executor);
+		service = new AgentTaskService(tasks, runs, registry, chat, executor, 120);
 
 		when(tasks.insert(any())).thenReturn(1);
 		when(tasks.selectById(anyString())).thenReturn(new AgentTask());
@@ -122,6 +123,37 @@ class AgentTaskServiceTest {
 
 		verify(tasks).finish(anyString(), eq(AgentTaskStatus.FAILED), isNull(), eq("TASK_EXECUTION_ERROR"),
 				anyString());
+	}
+
+	@Test
+	void shouldSkipAgentWhenTaskCannotStart() {
+		when(tasks.markRunning(anyString())).thenReturn(0);
+
+		Runnable worker = submitAndCaptureWorker();
+		worker.run();
+
+		verify(tasks).expireDueTask(anyString());
+		verifyNoInteractions(chat, runs);
+	}
+
+	@Test
+	void shouldAttachLateTraceAfterCompletionIsRejected() {
+		stubResponse("正常回答", 1);
+
+		when(tasks.finish(anyString(), eq(AgentTaskStatus.SUCCEEDED), eq("trace-test"), isNull(), isNull()))
+			.thenReturn(0);
+
+		when(tasks.attachLateTrace(anyString(), eq("trace-test"))).thenReturn(1);
+
+		Runnable worker = submitAndCaptureWorker();
+		worker.run();
+
+		InOrder order = inOrder(tasks);
+
+		order.verify(tasks).finish(anyString(), eq(AgentTaskStatus.SUCCEEDED), eq("trace-test"), isNull(), isNull());
+
+		order.verify(tasks).expireDueTask(anyString());
+		order.verify(tasks).attachLateTrace(anyString(), eq("trace-test"));
 	}
 
 	private Runnable submitAndCaptureWorker() {

@@ -5,31 +5,59 @@
 
 <mapper namespace="com.example.agent.mapper.AgentTaskMapper">
 
+    <sql id="taskColumns">
+        task_id,
+        idempotency_key,
+        request_fingerprint,
+        requested_model_id,
+        model_id,
+        status,
+        trace_id,
+        error_code,
+        error_message,
+        created_time,
+        deadline_at,
+        started_time,
+        finished_time
+    </sql>
+
+    <sql id="withinDeadline">
+        (deadline_at IS NULL OR deadline_at > CURRENT_TIMESTAMP(3))
+    </sql>
+
     <insert id="insert">
-        INSERT INTO agent_task
-        (task_id, idempotency_key, request_fingerprint,
-        requested_model_id, model_id, status)
-        VALUES
-        (#{taskId}, #{idempotencyKey}, #{requestFingerprint},
-        #{requestedModelId}, #{modelId}, 'QUEUED')
+        INSERT INTO agent_task (
+        task_id,
+        idempotency_key,
+        request_fingerprint,
+        requested_model_id,
+        model_id,
+        status,
+        created_time,
+        deadline_at
+        )
+        VALUES (
+        #{taskId},
+        #{idempotencyKey},
+        #{requestFingerprint},
+        #{requestedModelId},
+        #{modelId},
+        'QUEUED',
+        CURRENT_TIMESTAMP(3),
+        TIMESTAMPADD(SECOND, #{timeoutSeconds}, CURRENT_TIMESTAMP(3))
+        )
     </insert>
 
     <select id="selectById"
             resultType="com.example.agent.entity.AgentTask">
-        SELECT task_id, idempotency_key, request_fingerprint,
-        requested_model_id, model_id, status,
-        trace_id, error_code, error_message,
-        created_time, started_time, finished_time
+        SELECT <include refid="taskColumns"/>
         FROM agent_task
         WHERE task_id = #{taskId}
     </select>
 
     <select id="selectByIdempotencyKey"
             resultType="com.example.agent.entity.AgentTask">
-        SELECT task_id, idempotency_key, request_fingerprint,
-        requested_model_id, model_id, status,
-        trace_id, error_code, error_message,
-        created_time, started_time, finished_time
+        SELECT <include refid="taskColumns"/>
         FROM agent_task
         WHERE idempotency_key = #{idempotencyKey}
     </select>
@@ -40,6 +68,7 @@
         started_time = CURRENT_TIMESTAMP(3)
         WHERE task_id = #{taskId}
         AND status = 'QUEUED'
+        AND <include refid="withinDeadline"/>
     </update>
 
     <update id="markRejected">
@@ -50,6 +79,7 @@
         finished_time = CURRENT_TIMESTAMP(3)
         WHERE task_id = #{taskId}
         AND status = 'QUEUED'
+        AND <include refid="withinDeadline"/>
     </update>
 
     <update id="finish">
@@ -62,6 +92,43 @@
         WHERE task_id = #{taskId}
         AND status = 'RUNNING'
         AND #{status} IN ('SUCCEEDED', 'FAILED')
+        AND <include refid="withinDeadline"/>
+    </update>
+
+    <update id="expireDueTask">
+        UPDATE agent_task
+        SET status = 'TIMED_OUT',
+        error_code = 'TASK_DEADLINE_EXCEEDED',
+        error_message = '任务超过整体截止时间',
+        finished_time = CURRENT_TIMESTAMP(3)
+        WHERE task_id = #{taskId}
+        AND status IN ('QUEUED', 'RUNNING')
+        AND deadline_at IS NOT NULL
+        AND deadline_at &lt;= CURRENT_TIMESTAMP(3)
+    </update>
+
+    <update id="expireDueBatch">
+        UPDATE agent_task
+        SET status = 'TIMED_OUT',
+        error_code = 'TASK_DEADLINE_EXCEEDED',
+        error_message = '任务超过整体截止时间',
+        finished_time = CURRENT_TIMESTAMP(3)
+        WHERE status IN ('QUEUED', 'RUNNING')
+        AND deadline_at IS NOT NULL
+        AND deadline_at &lt;= CURRENT_TIMESTAMP(3)
+        ORDER BY deadline_at, task_id
+        LIMIT 100
+    </update>
+
+    <update id="attachLateTrace">
+        UPDATE agent_task
+        SET trace_id = #{traceId}
+        WHERE task_id = #{taskId}
+        AND status = 'TIMED_OUT'
+        AND started_time IS NOT NULL
+        AND trace_id IS NULL
+        AND #{traceId} IS NOT NULL
+        AND #{traceId} &lt;&gt; ''
     </update>
 
 </mapper>

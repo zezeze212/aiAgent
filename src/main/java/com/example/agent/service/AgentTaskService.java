@@ -12,6 +12,7 @@ import com.example.agent.task.AgentTaskStatus;
 import com.example.agent.task.TaskRequestFingerprint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DuplicateKeyException;
@@ -36,6 +37,8 @@ public class AgentTaskService {
 
 	private final TaskExecutor taskExecutor;
 
+	private final int timeoutSeconds;
+
 	/**
 	 * 本项目幂等键规则：8～128 位 ASCII 字符，区分大小写。 推荐客户端直接使用 UUID，同一次提交的重发复用原键。
 	 */
@@ -43,12 +46,19 @@ public class AgentTaskService {
 
 	public AgentTaskService(AgentTaskMapper taskMapper, AgentRunLogMapper runLogMapper,
 			AgentModelRegistry modelRegistry, SpringAiToolChatService chatService,
-			@Qualifier("agentTaskExecutor") TaskExecutor taskExecutor) {
+			@Qualifier("agentTaskExecutor") TaskExecutor taskExecutor,
+			@Value("${agent.task.timeout-seconds:120}") int timeoutSeconds) {
+
+		if (timeoutSeconds <= 0) {
+			throw new IllegalArgumentException("agent.task.timeout-seconds 必须大于 0");
+		}
+
 		this.taskMapper = taskMapper;
 		this.runLogMapper = runLogMapper;
 		this.modelRegistry = modelRegistry;
 		this.chatService = chatService;
 		this.taskExecutor = taskExecutor;
+		this.timeoutSeconds = timeoutSeconds;
 	}
 
 	/**
@@ -64,6 +74,7 @@ public class AgentTaskService {
 	 */
 	@Transactional(propagation = Propagation.NEVER)
 	public AgentTask submit(AgentAskRequest request, String idempotencyKey) {
+
 		validateRequest(request);
 
 		String key = validateIdempotencyKey(idempotencyKey);
@@ -76,12 +87,12 @@ public class AgentTaskService {
 			AgentTask existing = taskMapper.selectByIdempotencyKey(key);
 
 			if (existing != null) {
-				// 返回已有任务不需要再次验证模型当前是否可用。
+				// 包括 TIMED_OUT 在内，相同幂等键都复用原任务。
+				// 不重新分配预算，不再次投递。
 				return reuseExistingTask(existing, fingerprint);
 			}
 		}
 
-		// 只有确实需要创建新任务时，才检查模型可用性。
 		AgentModelRegistry.Entry selected = modelRegistry.resolve(requestedModelId);
 
 		String taskId = UUID.randomUUID().toString().replace("-", "");
@@ -94,15 +105,15 @@ public class AgentTaskService {
 		task.setModelId(selected.modelId());
 		task.setStatus(AgentTaskStatus.QUEUED);
 
+		// INSERT 使用数据库时间，将预算转换为持久化的 deadlineAt。
+		task.setTimeoutSeconds(timeoutSeconds);
+
 		try {
 			if (taskMapper.insert(task) != 1) {
 				throw new IllegalStateException("任务创建失败");
 			}
 		}
 		catch (DuplicateKeyException e) {
-			/*
-			 * 两个并发请求可能都在首次查询时没有找到任务。 唯一约束只允许一个插入成功，失败者读取获胜者的记录。
-			 */
 			if (key != null) {
 				AgentTask existing = taskMapper.selectByIdempotencyKey(key);
 
@@ -111,22 +122,29 @@ public class AgentTaskService {
 				}
 			}
 
-			// 没有找到对应幂等记录，不能把其他唯一键冲突伪装成成功重放。
 			throw e;
 		}
 
-		/*
-		 * 只有执行到这里的请求才真正创建了新任务。 普通重发和并发冲突分支均已返回，不会再次投递。
-		 */
 		try {
 			taskExecutor.execute(() -> executeTask(taskId, message, requestedModelId));
 		}
 		catch (TaskRejectedException e) {
-			if (taskMapper.markRejected(taskId) != 1) {
-				throw new IllegalStateException("任务拒绝状态保存失败", e);
-			}
+			int updated = taskMapper.markRejected(taskId);
 
-			log.warn("Agent 异步任务被拒绝，taskId={}", taskId);
+			if (updated == 1) {
+				log.warn("Agent 异步任务被拒绝，taskId={}", taskId);
+			}
+			else {
+				/*
+				 * 拒绝处理也可能与到期扫描发生竞争。 如果任务已经超时，应保留 TIMED_OUT， 不能把正常的状态竞争误报成保存失败。
+				 */
+				taskMapper.expireDueTask(taskId);
+
+				AgentTask current = getTask(taskId);
+				if (current.getStatus() != AgentTaskStatus.TIMED_OUT) {
+					throw new IllegalStateException("任务拒绝状态保存失败", e);
+				}
+			}
 		}
 
 		return getTask(taskId);
@@ -143,30 +161,32 @@ public class AgentTaskService {
 	}
 
 	private void executeTask(String taskId, String message, String requestedModelId) {
+
 		String traceId = null;
 
 		try {
-			// 只有成功完成 QUEUED -> RUNNING 的执行者才可以调用 Agent。
 			if (taskMapper.markRunning(taskId) != 1) {
+				/*
+				 * 可能是任务已经结束，也可能是排队期间已经到期。 对后者补一次状态收敛，然后跳过 Agent 调用。
+				 */
+				taskMapper.expireDueTask(taskId);
+
 				log.info("任务未获得执行资格，跳过执行，taskId={}", taskId);
 				return;
 			}
 
 			log.info("Agent 异步任务开始，taskId={}, thread={}", taskId, Thread.currentThread().getName());
 
-			// 完整复用模型选择、RAG、工具治理、引用审计和历史保存。
 			AgentAskResponse response = chatService.chat(message, requestedModelId);
 
 			if (response == null || response.getTraceId() == null || response.getTraceId().isBlank()) {
+
 				finish(taskId, AgentTaskStatus.FAILED, null, "AGENT_RESULT_MISSING", "Agent 未返回可关联的执行记录");
 				return;
 			}
 
 			traceId = response.getTraceId();
 
-			/*
-			 * chat() 可能返回失败说明，也可能捕获了日志保存异常。 必须读取已经持久化的执行状态，不能根据 answer 是否非空判断。
-			 */
 			AgentRunLog run = runLogMapper.selectByTraceId(traceId);
 
 			if (run == null) {
@@ -174,36 +194,53 @@ public class AgentTaskService {
 				return;
 			}
 
+			/*
+			 * 沿用现有判定口径： chat 返回字符串不代表执行成功， 仍需核对已经持久化的 Run 结果。
+			 */
 			if (!Integer.valueOf(1).equals(run.getSuccess())) {
 				finish(taskId, AgentTaskStatus.FAILED, traceId, "AGENT_EXECUTION_FAILED", "Agent 执行未通过，请查看关联 Trace");
 				return;
 			}
 
 			finish(taskId, AgentTaskStatus.SUCCEEDED, traceId, null, null);
+
 		}
 		catch (Exception e) {
 			log.error("Agent 异步任务执行异常，taskId={}, traceId={}", taskId, traceId, e);
 
 			try {
-				// 不直接把供应商或数据库异常原文返回给客户端。
 				finish(taskId, AgentTaskStatus.FAILED, traceId, "TASK_EXECUTION_ERROR", "任务执行异常，请查看服务端日志");
 			}
-			catch (Exception persistenceError) {
-				/*
-				 * 数据库不可用时，无法保证失败状态也能保存。 明确记录异常，后续由恢复机制处理遗留任务，不无限重试。
-				 */
-				log.error("任务失败状态保存异常，taskId={}", taskId, persistenceError);
+			catch (Exception persistenceException) {
+				log.error("任务失败状态保存异常，taskId={}", taskId, persistenceException);
 			}
 		}
 	}
 
 	private void finish(String taskId, AgentTaskStatus status, String traceId, String errorCode, String errorMessage) {
+
 		int updated = taskMapper.finish(taskId, status, traceId, errorCode, errorMessage);
 
-		if (updated != 1) {
-			// 条件更新不允许覆盖已经结束或不处于 RUNNING 的任务。
-			log.warn("任务完成状态未更新，taskId={}, targetStatus={}", taskId, status);
+		if (updated == 1) {
+			return;
 		}
+
+		/*
+		 * 完成 SQL 已经检查截止时间。 即使扫描还未运行，过期结果也不能写成成功或失败。
+		 */
+		taskMapper.expireDueTask(taskId);
+
+		if (traceId != null && !traceId.isBlank()) {
+			int attached = taskMapper.attachLateTrace(taskId, traceId);
+
+			if (attached == 1) {
+				log.info("超时任务已关联迟到结果，taskId={}, traceId={}", taskId, traceId);
+				return;
+			}
+		}
+
+		// 可能已处于终态，或者没有可补充的 Trace，不进行重复执行。
+		log.debug("任务完成状态未更新，taskId={}, targetStatus={}, traceId={}", taskId, status, traceId);
 	}
 
 	private String normalizeModelId(String modelId) {

@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -31,6 +32,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -77,6 +79,9 @@ class AgentLogServiceMySqlContainerTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private JdbcTemplate taskDeadlineJdbc;
 
 	/**
 	 * 只加载本测试需要的数据库、MyBatis、日志服务和 JSON 组件。
@@ -219,6 +224,7 @@ class AgentLogServiceMySqlContainerTest {
 			task.setRequestFingerprint(fingerprint);
 			task.setModelId("deepseek-main");
 			task.setStatus(AgentTaskStatus.QUEUED);
+			task.setTimeoutSeconds(120);
 
 			ready.countDown();
 
@@ -256,6 +262,152 @@ class AgentLogServiceMySqlContainerTest {
 			start.countDown();
 			pool.shutdownNow();
 		}
+	}
+
+	@Test
+	void shouldExpireQueuedTaskWithoutStartingIt() {
+		AgentTask task = insertDeadlineTestTask();
+		String taskId = task.getTaskId();
+
+		moveDeadlineIntoPast(taskId);
+
+		assertThat(agentTaskMapper.markRunning(taskId)).isZero();
+		assertThat(agentTaskMapper.expireDueTask(taskId)).isEqualTo(1);
+
+		AgentTask expired = agentTaskMapper.selectById(taskId);
+
+		assertThat(expired.getStatus()).isEqualTo(AgentTaskStatus.TIMED_OUT);
+		assertThat(expired.getErrorCode()).isEqualTo("TASK_DEADLINE_EXCEEDED");
+		assertThat(expired.getStartedTime()).isNull();
+		assertThat(expired.getTraceId()).isNull();
+		assertThat(expired.getFinishedTime()).isNotNull();
+
+		// 从未开始执行的任务，不接受迟到 Trace。
+		assertThat(agentTaskMapper.attachLateTrace(taskId, "late-trace")).isZero();
+
+		assertThat(agentTaskMapper.expireDueTask(taskId)).isZero();
+	}
+
+	@Test
+	void shouldRejectLateCompletionBeforeSweepRuns() {
+		AgentTask task = insertDeadlineTestTask();
+		String taskId = task.getTaskId();
+
+		assertThat(agentTaskMapper.markRunning(taskId)).isEqualTo(1);
+		moveDeadlineIntoPast(taskId);
+
+		// 扫描尚未执行，数据库中仍是 RUNNING。
+		// finish 必须自行检查截止时间。
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.SUCCEEDED, "late-success", null, null)).isZero();
+
+		assertThat(agentTaskMapper.expireDueTask(taskId)).isEqualTo(1);
+
+		LocalDateTime finishedTime = agentTaskMapper.selectById(taskId).getFinishedTime();
+
+		assertThat(agentTaskMapper.attachLateTrace(taskId, "late-success")).isEqualTo(1);
+
+		// 不能将超时终态改成失败，也不能替换已有 Trace。
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.FAILED, "another-trace", "LATE_ERROR", "迟到异常"))
+			.isZero();
+
+		assertThat(agentTaskMapper.attachLateTrace(taskId, "another-trace")).isZero();
+
+		AgentTask saved = agentTaskMapper.selectById(taskId);
+
+		assertThat(saved.getStatus()).isEqualTo(AgentTaskStatus.TIMED_OUT);
+		assertThat(saved.getTraceId()).isEqualTo("late-success");
+		assertThat(saved.getErrorCode()).isEqualTo("TASK_DEADLINE_EXCEEDED");
+		assertThat(saved.getFinishedTime()).isEqualTo(finishedTime);
+	}
+
+	@Test
+	void shouldKeepTimeoutWhenSweepWinsBeforeCompletion() {
+		AgentTask task = insertDeadlineTestTask();
+		String taskId = task.getTaskId();
+
+		assertThat(agentTaskMapper.markRunning(taskId)).isEqualTo(1);
+		moveDeadlineIntoPast(taskId);
+
+		assertThat(agentTaskMapper.expireDueBatch()).isGreaterThanOrEqualTo(1);
+
+		AgentTask expired = agentTaskMapper.selectById(taskId);
+		LocalDateTime finishedTime = expired.getFinishedTime();
+
+		assertThat(expired.getStatus()).isEqualTo(AgentTaskStatus.TIMED_OUT);
+
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.SUCCEEDED, "after-sweep", null, null)).isZero();
+
+		assertThat(agentTaskMapper.attachLateTrace(taskId, "after-sweep")).isEqualTo(1);
+
+		AgentTask saved = agentTaskMapper.selectById(taskId);
+
+		assertThat(saved.getStatus()).isEqualTo(AgentTaskStatus.TIMED_OUT);
+		assertThat(saved.getTraceId()).isEqualTo("after-sweep");
+		assertThat(saved.getFinishedTime()).isEqualTo(finishedTime);
+	}
+
+	@Test
+	void shouldKeepCompletedTaskAndSupportLegacyNullDeadline() {
+		AgentTask task = insertDeadlineTestTask();
+		String taskId = task.getTaskId();
+
+		assertThat(agentTaskMapper.markRunning(taskId)).isEqualTo(1);
+		assertThat(agentTaskMapper.finish(taskId, AgentTaskStatus.SUCCEEDED, "normal-trace", null, null)).isEqualTo(1);
+
+		LocalDateTime finishedTime = agentTaskMapper.selectById(taskId).getFinishedTime();
+
+		moveDeadlineIntoPast(taskId);
+		agentTaskMapper.expireDueBatch();
+
+		AgentTask completed = agentTaskMapper.selectById(taskId);
+
+		assertThat(completed.getStatus()).isEqualTo(AgentTaskStatus.SUCCEEDED);
+		assertThat(completed.getTraceId()).isEqualTo("normal-trace");
+		assertThat(completed.getFinishedTime()).isEqualTo(finishedTime);
+
+		// 模拟迁移前的旧记录：没有 deadline_at。
+		AgentTask legacy = insertDeadlineTestTask();
+
+		taskDeadlineJdbc.update("""
+				UPDATE agent_task
+				SET deadline_at = NULL
+				WHERE task_id = ?
+				""", legacy.getTaskId());
+
+		assertThat(agentTaskMapper.expireDueTask(legacy.getTaskId())).isZero();
+		assertThat(agentTaskMapper.markRunning(legacy.getTaskId())).isEqualTo(1);
+		assertThat(agentTaskMapper.finish(legacy.getTaskId(), AgentTaskStatus.SUCCEEDED, "legacy-trace", null, null))
+			.isEqualTo(1);
+	}
+
+	private AgentTask insertDeadlineTestTask() {
+		AgentTask task = new AgentTask();
+		task.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+		task.setModelId("deepseek-main");
+		task.setStatus(AgentTaskStatus.QUEUED);
+		task.setTimeoutSeconds(120);
+
+		assertThat(agentTaskMapper.insert(task)).isEqualTo(1);
+
+		AgentTask saved = agentTaskMapper.selectById(task.getTaskId());
+
+		assertThat(saved.getDeadlineAt()).isEqualTo(saved.getCreatedTime().plusSeconds(120));
+
+		return saved;
+	}
+
+	private void moveDeadlineIntoPast(String taskId) {
+		/*
+		 * 只调整测试容器中的时间字段，让用例确定性地到期。 不依赖 Thread.sleep，也不等待真实的 120 秒。
+		 */
+		int updated = taskDeadlineJdbc.update("""
+				UPDATE agent_task
+				SET deadline_at =
+				    TIMESTAMPADD(SECOND, -1, CURRENT_TIMESTAMP(3))
+				WHERE task_id = ?
+				""", taskId);
+
+		assertThat(updated).isEqualTo(1);
 	}
 
 	private String newTraceId(String prefix) {
