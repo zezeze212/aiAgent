@@ -9,15 +9,18 @@ import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentTaskMapper;
 import com.example.agent.model.AgentModelRegistry;
 import com.example.agent.task.AgentTaskStatus;
+import com.example.agent.task.TaskRequestFingerprint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -33,6 +36,13 @@ public class AgentTaskService {
 
 	private final TaskExecutor taskExecutor;
 
+	/**
+	 * 本项目幂等键规则：8～128 位 ASCII 字符，区分大小写。
+	 * 推荐客户端直接使用 UUID，同一次提交的重发复用原键。
+	 */
+	private static final Pattern IDEMPOTENCY_KEY_PATTERN =
+			Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,127}");
+
 	public AgentTaskService(AgentTaskMapper taskMapper, AgentRunLogMapper runLogMapper,
 			AgentModelRegistry modelRegistry, SpringAiToolChatService chatService,
 			@Qualifier("agentTaskExecutor") TaskExecutor taskExecutor) {
@@ -44,39 +54,77 @@ public class AgentTaskService {
 	}
 
 	/**
-	 * 不允许带着未提交的外围事务投递任务。 Mapper insert 返回时已提交，工作线程才能立即读取和更新任务。
+	 * 保留原有内部调用方式：未提供幂等键时，每次创建新任务。
 	 */
 	@Transactional(propagation = Propagation.NEVER)
 	public AgentTask submit(AgentAskRequest request) {
-		if (request == null || request.getMessage() == null || request.getMessage().isBlank()) {
-			throw new BusinessException(400, "message 不能为空");
-		}
+		return submit(request, null);
+	}
 
-		// 限制排队请求的单条大小；这是本项目异步入口策略，不是模型窗口限制。
-		if (request.getMessage().length() > 50_000) {
-			throw new BusinessException(400, "message 不能超过 50000 个字符");
-		}
+	/**
+	 * 任务创建必须先提交，再投递线程池。
+	 * 继续禁止在外围事务中调用，避免并发请求读取未提交的数据。
+	 */
+	@Transactional(propagation = Propagation.NEVER)
+	public AgentTask submit(AgentAskRequest request, String idempotencyKey) {
+		validateRequest(request);
 
+		String key = validateIdempotencyKey(idempotencyKey);
 		String message = request.getMessage();
 		String requestedModelId = normalizeModelId(request.getModelId());
 
-		// 无效、禁用模型在创建任务之前拒绝，避免占用队列。
+		String fingerprint = key == null ? null
+				: TaskRequestFingerprint.calculate(message, requestedModelId);
+
+		if (key != null) {
+			AgentTask existing = taskMapper.selectByIdempotencyKey(key);
+
+			if (existing != null) {
+				// 返回已有任务不需要再次验证模型当前是否可用。
+				return reuseExistingTask(existing, fingerprint);
+			}
+		}
+
+		// 只有确实需要创建新任务时，才检查模型可用性。
 		AgentModelRegistry.Entry selected = modelRegistry.resolve(requestedModelId);
 
 		String taskId = UUID.randomUUID().toString().replace("-", "");
 
 		AgentTask task = new AgentTask();
 		task.setTaskId(taskId);
+		task.setIdempotencyKey(key);
+		task.setRequestFingerprint(fingerprint);
 		task.setRequestedModelId(requestedModelId);
 		task.setModelId(selected.modelId());
 		task.setStatus(AgentTaskStatus.QUEUED);
 
-		if (taskMapper.insert(task) != 1) {
-			throw new IllegalStateException("任务创建失败");
+		try {
+			if (taskMapper.insert(task) != 1) {
+				throw new IllegalStateException("任务创建失败");
+			}
+		}
+		catch (DuplicateKeyException e) {
+			/*
+			 * 两个并发请求可能都在首次查询时没有找到任务。
+			 * 唯一约束只允许一个插入成功，失败者读取获胜者的记录。
+			 */
+			if (key != null) {
+				AgentTask existing = taskMapper.selectByIdempotencyKey(key);
+
+				if (existing != null) {
+					return reuseExistingTask(existing, fingerprint);
+				}
+			}
+
+			// 没有找到对应幂等记录，不能把其他唯一键冲突伪装成成功重放。
+			throw e;
 		}
 
+		/*
+		 * 只有执行到这里的请求才真正创建了新任务。
+		 * 普通重发和并发冲突分支均已返回，不会再次投递。
+		 */
 		try {
-			// 捕获不可变字符串，不把可变请求 DTO 交给异步线程。
 			taskExecutor.execute(() -> executeTask(taskId, message, requestedModelId));
 		}
 		catch (TaskRejectedException e) {
@@ -87,7 +135,6 @@ public class AgentTaskService {
 			log.warn("Agent 异步任务被拒绝，taskId={}", taskId);
 		}
 
-		// 工作线程可能已经启动，返回查询时实际可见的状态。
 		return getTask(taskId);
 	}
 
@@ -167,6 +214,44 @@ public class AgentTaskService {
 
 	private String normalizeModelId(String modelId) {
 		return modelId == null || modelId.isBlank() ? null : modelId.trim();
+	}
+
+	private void validateRequest(AgentAskRequest request) {
+		if (request == null || request.getMessage() == null
+				|| request.getMessage().isBlank()) {
+			throw new BusinessException(400, "message 不能为空");
+		}
+
+		if (request.getMessage().length() > 50_000) {
+			throw new BusinessException(400, "message 不能超过 50000 个字符");
+		}
+	}
+
+	private String validateIdempotencyKey(String key) {
+		if (key == null) {
+			return null;
+		}
+
+		/*
+		 * 请求头未提供和提供了非法值是两种情况。
+		 * 不把空白键静默当成“未提供”，否则客户端可能误以为已启用幂等。
+		 */
+		if (!IDEMPOTENCY_KEY_PATTERN.matcher(key).matches()) {
+			throw new BusinessException(400,
+					"Idempotency-Key 必须为 8～128 位字母、数字或 . _ : -，且首位为字母或数字");
+		}
+
+		return key;
+	}
+
+	private AgentTask reuseExistingTask(AgentTask existing, String fingerprint) {
+		if (!fingerprint.equals(existing.getRequestFingerprint())) {
+			throw new BusinessException(409,
+					"IDEMPOTENCY_KEY_CONFLICT：同一幂等键不能用于不同的请求内容");
+		}
+
+		// 不区分当前状态，不自动重跑 FAILED 或 REJECTED 任务。
+		return existing;
 	}
 
 }

@@ -4,11 +4,15 @@ import com.example.agent.dto.AgentAskResponse;
 import com.example.agent.dto.AgentTraceStep;
 import com.example.agent.entity.AgentRunLog;
 import com.example.agent.entity.AgentStepLog;
+import com.example.agent.entity.AgentTask;
 import com.example.agent.mapper.AgentRunLogMapper;
 import com.example.agent.mapper.AgentStepLogMapper;
+import com.example.agent.mapper.AgentTaskMapper;
 import com.example.agent.service.AgentLogService;
 import com.example.agent.support.AgentJsonHelper;
 import com.example.agent.support.TraceContentSanitizer;
+import com.example.agent.task.AgentTaskStatus;
+import com.example.agent.task.TaskRequestFingerprint;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.annotation.MapperScan;
@@ -17,6 +21,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -29,6 +34,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -65,6 +71,9 @@ class AgentLogServiceMySqlContainerTest {
 
 	@Autowired
 	private AgentStepLogMapper agentStepLogMapper;
+
+	@Autowired
+	private AgentTaskMapper agentTaskMapper;
 
 	@Autowired
 	private ObjectMapper objectMapper;
@@ -192,6 +201,61 @@ class AgentLogServiceMySqlContainerTest {
 		assertThat(agentRunLogMapper.selectByTraceId(traceId)).isNull();
 
 		assertThat(agentStepLogMapper.selectByTraceId(traceId)).isEmpty();
+	}
+
+	@Test
+	void shouldAllowOnlyOneConcurrentInsertForSameIdempotencyKey() throws Exception {
+		String key = "concurrent-" + UUID.randomUUID();
+		String fingerprint = TaskRequestFingerprint.calculate("解释 Java 接口", null);
+
+		ExecutorService pool = Executors.newFixedThreadPool(2);
+		CountDownLatch ready = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+
+		Callable<Boolean> attempt = () -> {
+			AgentTask task = new AgentTask();
+			task.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+			task.setIdempotencyKey(key);
+			task.setRequestFingerprint(fingerprint);
+			task.setModelId("deepseek-main");
+			task.setStatus(AgentTaskStatus.QUEUED);
+
+			ready.countDown();
+
+			if (!start.await(5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("等待并发测试启动超时");
+			}
+
+			try {
+				return agentTaskMapper.insert(task) == 1;
+			}
+			catch (DuplicateKeyException e) {
+				return false;
+			}
+		};
+
+		try {
+			Future<Boolean> first = pool.submit(attempt);
+			Future<Boolean> second = pool.submit(attempt);
+
+			assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+
+			boolean firstInserted = first.get(10, TimeUnit.SECONDS);
+			boolean secondInserted = second.get(10, TimeUnit.SECONDS);
+
+			// 必须恰好一个成功、另一个因唯一约束被拒绝。
+			assertThat(firstInserted).isNotEqualTo(secondInserted);
+
+			AgentTask saved = agentTaskMapper.selectByIdempotencyKey(key);
+			assertThat(saved).isNotNull();
+			assertThat(saved.getRequestFingerprint()).isEqualTo(fingerprint);
+			assertThat(saved.getStatus()).isEqualTo(AgentTaskStatus.QUEUED);
+		}
+		finally {
+			start.countDown();
+			pool.shutdownNow();
+		}
 	}
 
 	private String newTraceId(String prefix) {

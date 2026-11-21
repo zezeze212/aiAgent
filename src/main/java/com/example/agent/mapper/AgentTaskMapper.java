@@ -10,6 +10,8 @@ public interface AgentTaskMapper {
 
 	AgentTask selectById(@Param("taskId") String taskId);
 
+	AgentTask selectByIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
+
 	int markRunning(@Param("taskId") String taskId);
 
 	int markRejected(@Param("taskId") String taskId);

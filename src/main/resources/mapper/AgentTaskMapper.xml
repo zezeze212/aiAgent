@@ -7,18 +7,31 @@
 
     <insert id="insert">
         INSERT INTO agent_task
-        (task_id, requested_model_id, model_id, status)
+        (task_id, idempotency_key, request_fingerprint,
+        requested_model_id, model_id, status)
         VALUES
-        (#{taskId}, #{requestedModelId}, #{modelId}, 'QUEUED')
+        (#{taskId}, #{idempotencyKey}, #{requestFingerprint},
+        #{requestedModelId}, #{modelId}, 'QUEUED')
     </insert>
 
     <select id="selectById"
             resultType="com.example.agent.entity.AgentTask">
-        SELECT task_id, requested_model_id, model_id, status,
+        SELECT task_id, idempotency_key, request_fingerprint,
+        requested_model_id, model_id, status,
         trace_id, error_code, error_message,
         created_time, started_time, finished_time
         FROM agent_task
         WHERE task_id = #{taskId}
+    </select>
+
+    <select id="selectByIdempotencyKey"
+            resultType="com.example.agent.entity.AgentTask">
+        SELECT task_id, idempotency_key, request_fingerprint,
+        requested_model_id, model_id, status,
+        trace_id, error_code, error_message,
+        created_time, started_time, finished_time
+        FROM agent_task
+        WHERE idempotency_key = #{idempotencyKey}
     </select>
 
     <update id="markRunning">
