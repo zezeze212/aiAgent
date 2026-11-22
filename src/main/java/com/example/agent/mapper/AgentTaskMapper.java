@@ -44,4 +44,9 @@ public interface AgentTaskMapper {
 	 */
 	int recoverUnfinishedOnStartup();
 
+	/**
+	 * 查询指定原任务已经创建的唯一重试子任务。
+	 */
+	AgentTask selectByRetryOfTaskId(@Param("retryOfTaskId") String retryOfTaskId);
+
 }

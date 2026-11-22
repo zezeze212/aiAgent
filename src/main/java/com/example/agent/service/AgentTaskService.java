@@ -89,8 +89,6 @@ public class AgentTaskService {
 			AgentTask existing = taskMapper.selectByIdempotencyKey(key);
 
 			if (existing != null) {
-				// 包括 TIMED_OUT 在内，相同幂等键都复用原任务。
-				// 不重新分配预算，不再次投递。
 				return reuseExistingTask(existing, fingerprint);
 			}
 		}
@@ -103,11 +101,13 @@ public class AgentTaskService {
 		task.setTaskId(taskId);
 		task.setIdempotencyKey(key);
 		task.setRequestFingerprint(fingerprint);
+
+		// 保存原文；指纹不能替代原始请求。
+		task.setRequestMessage(message);
+
 		task.setRequestedModelId(requestedModelId);
 		task.setModelId(selected.modelId());
 		task.setStatus(AgentTaskStatus.QUEUED);
-
-		// INSERT 使用数据库时间，将预算转换为持久化的 deadlineAt。
 		task.setTimeoutSeconds(timeoutSeconds);
 
 		try {
@@ -127,28 +127,7 @@ public class AgentTaskService {
 			throw e;
 		}
 
-		try {
-			taskExecutor.execute(() -> executeTask(taskId, message, requestedModelId));
-		}
-		catch (TaskRejectedException e) {
-			int updated = taskMapper.markRejected(taskId);
-
-			if (updated == 1) {
-				log.warn("Agent 异步任务被拒绝，taskId={}", taskId);
-			}
-			else {
-				/*
-				 * 拒绝处理也可能与到期扫描发生竞争。 如果任务已经超时，应保留 TIMED_OUT， 不能把正常的状态竞争误报成保存失败。
-				 */
-				taskMapper.expireDueTask(taskId);
-
-				AgentTask current = getTask(taskId);
-				if (current.getStatus() != AgentTaskStatus.TIMED_OUT) {
-					throw new IllegalStateException("任务拒绝状态保存失败", e);
-				}
-			}
-		}
-
+		dispatchTask(taskId, message, requestedModelId);
 		return getTask(taskId);
 	}
 
@@ -272,6 +251,120 @@ public class AgentTaskService {
 		}
 
 		return key;
+	}
+
+	private void validateRetrySource(AgentTask source) {
+		/*
+		 * startedTime 表示已经取得执行资格。 即使模型可能尚未真正调用，也不凭猜测允许重试。
+		 */
+		if (source.getStartedTime() != null) {
+			throw new BusinessException(409, "TASK_RETRY_NOT_ALLOWED：原任务已开始执行，当前策略不允许重试");
+		}
+
+		boolean allowedStatus = source.getStatus() == AgentTaskStatus.REJECTED
+				|| source.getStatus() == AgentTaskStatus.TIMED_OUT || (source.getStatus() == AgentTaskStatus.FAILED
+						&& "TASK_PROCESS_RESTARTED".equals(source.getErrorCode()));
+
+		if (!allowedStatus) {
+			throw new BusinessException(409, "TASK_RETRY_NOT_ALLOWED：原任务状态不满足重试条件");
+		}
+
+		if (source.getRequestMessage() == null || source.getRequestMessage().isBlank()) {
+
+			throw new BusinessException(409, "TASK_RETRY_REQUEST_MISSING：原任务未保存可重试的请求内容");
+		}
+	}
+
+	@Transactional(propagation = Propagation.NEVER)
+	public AgentTask retry(String sourceTaskId) {
+		AgentTask source = getTask(sourceTaskId);
+
+		// 每个普通任务最多派生一次，不允许形成重试链。
+		if (source.getRetryOfTaskId() != null) {
+			throw new BusinessException(409, "TASK_RETRY_LIMIT_REACHED：重试子任务不能再次创建重试任务");
+		}
+
+		AgentTask existing = taskMapper.selectByRetryOfTaskId(sourceTaskId);
+
+		if (existing != null) {
+			/*
+			 * 重复点击返回已有子任务，不受其当前状态影响。 不重新校验模型，不刷新截止时间，不再次投递。
+			 */
+			return existing;
+		}
+
+		validateRetrySource(source);
+
+		/*
+		 * 固定原任务已经选定的业务模型。 默认模型配置改变，也不会让重试悄悄切换模型。
+		 */
+		AgentModelRegistry.Entry selected = modelRegistry.resolve(source.getModelId());
+
+		AgentTask child = new AgentTask();
+		child.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+		child.setRetryOfTaskId(sourceTaskId);
+		child.setRequestMessage(source.getRequestMessage());
+
+		// 本次重试显式指定原模型，因此 requestedModelId 也记录该模型。
+		child.setRequestedModelId(selected.modelId());
+		child.setModelId(selected.modelId());
+		child.setStatus(AgentTaskStatus.QUEUED);
+		child.setTimeoutSeconds(timeoutSeconds);
+
+		/*
+		 * 重试入口通过 retryOfTaskId 唯一约束去重。 idempotencyKey 和 requestFingerprint 均为空， 符合原有 V4
+		 * 的字段配对约束。
+		 */
+		try {
+			if (taskMapper.insert(child) != 1) {
+				throw new IllegalStateException("重试任务创建失败");
+			}
+
+		}
+		catch (DuplicateKeyException e) {
+			/*
+			 * 两个请求可能同时查到没有子任务。 唯一约束只允许其中一个成功插入； 另一个返回获胜者创建的任务，不重复投递。
+			 */
+			AgentTask winner = taskMapper.selectByRetryOfTaskId(sourceTaskId);
+
+			if (winner != null) {
+				return winner;
+			}
+
+			// 如果不是已知的重试竞争，不掩盖其他唯一键错误。
+			throw e;
+		}
+
+		dispatchTask(child.getTaskId(), child.getRequestMessage(), child.getRequestedModelId());
+
+		return getTask(child.getTaskId());
+	}
+
+	private void dispatchTask(String taskId, String message, String requestedModelId) {
+
+		try {
+			taskExecutor.execute(() -> executeTask(taskId, message, requestedModelId));
+
+		}
+		catch (TaskRejectedException e) {
+			int updated = taskMapper.markRejected(taskId);
+
+			if (updated == 1) {
+				log.warn("Agent 异步任务被拒绝，taskId={}", taskId);
+				return;
+			}
+
+			/*
+			 * 投递拒绝可能与到期扫描竞争。 如果任务已经超时，保留 TIMED_OUT。
+			 */
+			taskMapper.expireDueTask(taskId);
+
+			AgentTask current = getTask(taskId);
+
+			if (current.getStatus() != AgentTaskStatus.TIMED_OUT) {
+				throw new IllegalStateException("任务拒绝状态保存失败", e);
+			}
+		}
 	}
 
 	private AgentTask reuseExistingTask(AgentTask existing, String fingerprint) {

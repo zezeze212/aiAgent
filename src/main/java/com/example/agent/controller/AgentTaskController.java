@@ -24,8 +24,25 @@ public class AgentTaskController {
 
 		AgentTask task = taskService.submit(request, idempotencyKey);
 
+		return toTaskResponse(task);
+	}
+
+	@GetMapping("/{taskId}")
+	public Result<AgentTask> getTask(@PathVariable String taskId) {
+		return Result.success(taskService.getTask(taskId));
+	}
+
+	@PostMapping("/{taskId}/retry")
+	public ResponseEntity<Result<AgentTask>> retry(@PathVariable("taskId") String taskId) {
+
+		AgentTask task = taskService.retry(taskId);
+		return toTaskResponse(task);
+	}
+
+	private ResponseEntity<Result<AgentTask>> toTaskResponse(AgentTask task) {
+
 		if (task.getStatus() == AgentTaskStatus.REJECTED) {
-			return ResponseEntity.status(503).body(new Result<>(503, "任务执行器未接收该任务；相同幂等键不会重新投递", task));
+			return ResponseEntity.status(503).body(new Result<>(503, "任务执行器未接收该任务；重复请求不会重新投递", task));
 		}
 
 		if (task.getStatus() == AgentTaskStatus.SUCCEEDED || task.getStatus() == AgentTaskStatus.FAILED
@@ -35,11 +52,6 @@ public class AgentTaskController {
 		}
 
 		return ResponseEntity.status(202).body(new Result<>(202, "accepted", task));
-	}
-
-	@GetMapping("/{taskId}")
-	public Result<AgentTask> getTask(@PathVariable String taskId) {
-		return Result.success(taskService.getTask(taskId));
 	}
 
 	@ExceptionHandler(BusinessException.class)

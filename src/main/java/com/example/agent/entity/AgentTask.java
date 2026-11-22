@@ -49,4 +49,15 @@ public class AgentTask {
 	@JsonIgnore
 	private int timeoutSeconds;
 
+	/**
+	 * 原始用户问题，供受控重试使用。 不随任务查询响应直接返回。
+	 */
+	@JsonIgnore
+	private String requestMessage;
+
+	/**
+	 * 重试来源任务 ID。 普通任务为空，重试子任务指向原任务。
+	 */
+	private String retryOfTaskId;
+
 }

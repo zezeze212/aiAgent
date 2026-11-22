@@ -500,6 +500,64 @@ class AgentLogServiceMySqlContainerTest {
 		}
 	}
 
+	@Test
+	void shouldPersistRequestAndAllowOnlyOneRetryChild() {
+		AgentTask source = new AgentTask();
+		source.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+		source.setModelId("deepseek-main");
+		source.setStatus(AgentTaskStatus.QUEUED);
+		source.setTimeoutSeconds(120);
+		source.setRequestMessage("第一行问题\n第二行补充信息");
+
+		assertThat(agentTaskMapper.insert(source)).isEqualTo(1);
+		assertThat(agentTaskMapper.markRejected(source.getTaskId()))
+				.isEqualTo(1);
+
+		AgentTask sourceBefore =
+				agentTaskMapper.selectById(source.getTaskId());
+
+		assertThat(sourceBefore.getRequestMessage())
+				.isEqualTo("第一行问题\n第二行补充信息");
+
+		AgentTask first = new AgentTask();
+		first.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+		first.setRetryOfTaskId(source.getTaskId());
+		first.setRequestMessage(sourceBefore.getRequestMessage());
+		first.setRequestedModelId("deepseek-main");
+		first.setModelId("deepseek-main");
+		first.setStatus(AgentTaskStatus.QUEUED);
+		first.setTimeoutSeconds(120);
+
+		assertThat(agentTaskMapper.insert(first)).isEqualTo(1);
+
+		AgentTask second = new AgentTask();
+		second.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+		second.setRetryOfTaskId(source.getTaskId());
+		second.setRequestMessage(sourceBefore.getRequestMessage());
+		second.setRequestedModelId("deepseek-main");
+		second.setModelId("deepseek-main");
+		second.setStatus(AgentTaskStatus.QUEUED);
+		second.setTimeoutSeconds(120);
+
+		// 不依赖 Service 检查，数据库本身必须拒绝第二个子任务。
+		assertThatThrownBy(() -> agentTaskMapper.insert(second))
+				.isInstanceOf(DuplicateKeyException.class);
+
+		AgentTask saved =
+				agentTaskMapper.selectByRetryOfTaskId(source.getTaskId());
+
+		assertThat(saved.getTaskId()).isEqualTo(first.getTaskId());
+		assertThat(saved.getRequestMessage())
+				.isEqualTo(sourceBefore.getRequestMessage());
+		assertThat(saved.getDeadlineAt())
+				.isEqualTo(saved.getCreatedTime().plusSeconds(120));
+
+		// 创建子任务不能覆盖原任务状态、错误或时间。
+		assertThat(agentTaskMapper.selectById(source.getTaskId()))
+				.usingRecursiveComparison()
+				.isEqualTo(sourceBefore);
+	}
+
 	private AgentTask insertDeadlineTestTask() {
 		AgentTask task = new AgentTask();
 		task.setTaskId(UUID.randomUUID().toString().replace("-", ""));

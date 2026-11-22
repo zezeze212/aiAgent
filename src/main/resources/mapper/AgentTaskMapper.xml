@@ -7,8 +7,10 @@
 
     <sql id="taskColumns">
         task_id,
+        retry_of_task_id,
         idempotency_key,
         request_fingerprint,
+        request_message,
         requested_model_id,
         model_id,
         status,
@@ -28,8 +30,10 @@
     <insert id="insert">
         INSERT INTO agent_task (
         task_id,
+        retry_of_task_id,
         idempotency_key,
         request_fingerprint,
+        request_message,
         requested_model_id,
         model_id,
         status,
@@ -38,8 +42,10 @@
         )
         VALUES (
         #{taskId},
+        #{retryOfTaskId},
         #{idempotencyKey},
         #{requestFingerprint},
+        #{requestMessage},
         #{requestedModelId},
         #{modelId},
         'QUEUED',
@@ -158,5 +164,12 @@
         finished_time = CURRENT_TIMESTAMP(3)
         WHERE status IN ('QUEUED', 'RUNNING')
     </update>
+
+    <select id="selectByRetryOfTaskId"
+            resultType="com.example.agent.entity.AgentTask">
+        SELECT <include refid="taskColumns"/>
+        FROM agent_task
+        WHERE retry_of_task_id = #{retryOfTaskId}
+    </select>
 
 </mapper>

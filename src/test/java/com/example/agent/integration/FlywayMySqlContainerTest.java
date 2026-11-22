@@ -40,12 +40,12 @@ class FlywayMySqlContainerTest {
 
 		MigrateResult firstResult = flyway.migrate();
 
-		assertThat(firstResult.migrationsExecuted).as("空库应依次执行 V1 到 V5").isEqualTo(5);
+		assertThat(firstResult.migrationsExecuted).as("空库应依次执行 V1 到 V6").isEqualTo(6);
 
 		assertThat(queryTableNames()).contains("agent_run_log", "agent_step_log", "agent_task",
 				"flyway_schema_history");
 
-		for (String version : new String[] { "1", "2", "3", "4", "5" }) {
+		for (String version : new String[] { "1", "2", "3", "4", "5", "6" }) {
 			assertThat(countSuccessfulMigration(version)).as("V%s 应且只能存在一条成功记录", version).isEqualTo(1);
 		}
 
@@ -53,9 +53,9 @@ class FlywayMySqlContainerTest {
 
 		MigrateResult secondResult = flyway.migrate();
 
-		assertThat(secondResult.migrationsExecuted).as("第二次迁移不应重复执行历史版本").isZero();
+		assertThat(secondResult.migrationsExecuted).isZero();
 
-		for (String version : new String[] { "1", "2", "3", "4", "5" }) {
+		for (String version : new String[] { "1", "2", "3", "4", "5", "6" }) {
 			assertThat(countSuccessfulMigration(version)).isEqualTo(1);
 		}
 	}
