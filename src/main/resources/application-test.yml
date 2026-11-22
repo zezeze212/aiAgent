@@ -30,6 +30,7 @@ spring:
 agent:
   task:
     sweep-enabled: false
+    startup-recovery-enabled: false
 
   rag:
     mode: rule

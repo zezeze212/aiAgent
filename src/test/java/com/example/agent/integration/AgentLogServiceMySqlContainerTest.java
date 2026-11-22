@@ -380,6 +380,126 @@ class AgentLogServiceMySqlContainerTest {
 			.isEqualTo(1);
 	}
 
+	@Test
+	void shouldRecoverUnfinishedTasksAccordingToDeadline() {
+		AgentTask queued = insertDeadlineTestTask();
+
+		AgentTask running = insertDeadlineTestTask();
+		assertThat(agentTaskMapper.markRunning(running.getTaskId())).isEqualTo(1);
+
+		AgentTask expiredQueued = insertDeadlineTestTask();
+		moveDeadlineIntoPast(expiredQueued.getTaskId());
+
+		AgentTask expiredRunning = insertDeadlineTestTask();
+		assertThat(agentTaskMapper.markRunning(expiredRunning.getTaskId())).isEqualTo(1);
+		moveDeadlineIntoPast(expiredRunning.getTaskId());
+
+		AgentTask legacy = insertDeadlineTestTask();
+		taskDeadlineJdbc.update("""
+				UPDATE agent_task
+				SET deadline_at = NULL
+				WHERE task_id = ?
+				""", legacy.getTaskId());
+
+		/*
+		 * 给其中一个任务设置幂等信息，验证恢复不会破坏原来的关联。 此处指纹只是数据库测试数据，不用于真实请求重放。
+		 */
+		String key = "startup-" + UUID.randomUUID();
+		String fingerprint = "a".repeat(64);
+
+		taskDeadlineJdbc.update("""
+				UPDATE agent_task
+				SET idempotency_key = ?,
+				    request_fingerprint = ?
+				WHERE task_id = ?
+				""", key, fingerprint, queued.getTaskId());
+
+		int updated = agentTaskMapper.recoverUnfinishedOnStartup();
+
+		// 同一测试容器可能还有其他用例留下的活动记录，不依赖全库精确数量。
+		assertThat(updated).isGreaterThanOrEqualTo(5);
+
+		for (AgentTask task : List.of(queued, running, legacy)) {
+			AgentTask saved = agentTaskMapper.selectById(task.getTaskId());
+
+			assertThat(saved.getStatus()).isEqualTo(AgentTaskStatus.FAILED);
+			assertThat(saved.getErrorCode()).isEqualTo("TASK_PROCESS_RESTARTED");
+			assertThat(saved.getFinishedTime()).isNotNull();
+		}
+
+		for (AgentTask task : List.of(expiredQueued, expiredRunning)) {
+			AgentTask saved = agentTaskMapper.selectById(task.getTaskId());
+
+			assertThat(saved.getStatus()).isEqualTo(AgentTaskStatus.TIMED_OUT);
+			assertThat(saved.getErrorCode()).isEqualTo("TASK_DEADLINE_EXCEEDED");
+			assertThat(saved.getFinishedTime()).isNotNull();
+		}
+
+		AgentTask recoveredQueued = agentTaskMapper.selectById(queued.getTaskId());
+
+		assertThat(recoveredQueued.getStartedTime()).isNull();
+		assertThat(recoveredQueued.getTraceId()).isNull();
+		assertThat(recoveredQueued.getDeadlineAt()).isEqualTo(queued.getDeadlineAt());
+
+		assertThat(agentTaskMapper.selectById(running.getTaskId()).getStartedTime()).isNotNull();
+
+		AgentTask reused = agentTaskMapper.selectByIdempotencyKey(key);
+
+		assertThat(reused.getTaskId()).isEqualTo(queued.getTaskId());
+		assertThat(reused.getRequestFingerprint()).isEqualTo(fingerprint);
+		assertThat(reused.getStatus()).isEqualTo(AgentTaskStatus.FAILED);
+
+		// 已完成恢复，再执行一次不应重复更新终态。
+		assertThat(agentTaskMapper.recoverUnfinishedOnStartup()).isZero();
+
+		assertThat(agentTaskMapper.selectById(queued.getTaskId()).getFinishedTime())
+			.isEqualTo(recoveredQueued.getFinishedTime());
+	}
+
+	@Test
+	void shouldPreserveAllTerminalTasksDuringStartupRecovery() {
+		AgentTask succeeded = insertDeadlineTestTask();
+
+		assertThat(agentTaskMapper.markRunning(succeeded.getTaskId())).isEqualTo(1);
+		assertThat(agentTaskMapper.finish(succeeded.getTaskId(), AgentTaskStatus.SUCCEEDED, "recovery-success-trace",
+				null, null))
+			.isEqualTo(1);
+
+		AgentTask failed = insertDeadlineTestTask();
+
+		assertThat(agentTaskMapper.markRunning(failed.getTaskId())).isEqualTo(1);
+		assertThat(agentTaskMapper.finish(failed.getTaskId(), AgentTaskStatus.FAILED, "recovery-failed-trace",
+				"AGENT_EXECUTION_FAILED", "已有执行失败"))
+			.isEqualTo(1);
+
+		AgentTask rejected = insertDeadlineTestTask();
+
+		assertThat(agentTaskMapper.markRejected(rejected.getTaskId())).isEqualTo(1);
+
+		AgentTask timedOut = insertDeadlineTestTask();
+
+		assertThat(agentTaskMapper.markRunning(timedOut.getTaskId())).isEqualTo(1);
+		moveDeadlineIntoPast(timedOut.getTaskId());
+
+		assertThat(agentTaskMapper.expireDueTask(timedOut.getTaskId())).isEqualTo(1);
+		assertThat(agentTaskMapper.attachLateTrace(timedOut.getTaskId(), "recovery-late-trace")).isEqualTo(1);
+
+		List<AgentTask> beforeRecovery = List
+			.of(succeeded.getTaskId(), failed.getTaskId(), rejected.getTaskId(), timedOut.getTaskId())
+			.stream()
+			.map(agentTaskMapper::selectById)
+			.toList();
+
+		agentTaskMapper.recoverUnfinishedOnStartup();
+
+		for (AgentTask before : beforeRecovery) {
+			AgentTask after = agentTaskMapper.selectById(before.getTaskId());
+
+			// 包括状态、错误信息、Trace 和所有时间字段，均应保持不变。
+			assertThat(after).usingRecursiveComparison().isEqualTo(before);
+		}
+	}
+
 	private AgentTask insertDeadlineTestTask() {
 		AgentTask task = new AgentTask();
 		task.setTaskId(UUID.randomUUID().toString().replace("-", ""));

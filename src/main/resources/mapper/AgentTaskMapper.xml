@@ -131,4 +131,32 @@
         AND #{traceId} &lt;&gt; ''
     </update>
 
+
+    <update id="recoverUnfinishedOnStartup">
+        UPDATE agent_task
+        SET status =
+        CASE
+        WHEN deadline_at IS NOT NULL
+        AND deadline_at &lt;= CURRENT_TIMESTAMP(3)
+        THEN 'TIMED_OUT'
+        ELSE 'FAILED'
+        END,
+        error_code =
+        CASE
+        WHEN deadline_at IS NOT NULL
+        AND deadline_at &lt;= CURRENT_TIMESTAMP(3)
+        THEN 'TASK_DEADLINE_EXCEEDED'
+        ELSE 'TASK_PROCESS_RESTARTED'
+        END,
+        error_message =
+        CASE
+        WHEN deadline_at IS NOT NULL
+        AND deadline_at &lt;= CURRENT_TIMESTAMP(3)
+        THEN '任务超过整体截止时间'
+        ELSE '服务启动时发现遗留未完成任务，本地执行已中断，未自动重试'
+        END,
+        finished_time = CURRENT_TIMESTAMP(3)
+        WHERE status IN ('QUEUED', 'RUNNING')
+    </update>
+
 </mapper>

@@ -13,6 +13,7 @@ import com.example.agent.task.TaskRequestFingerprint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DuplicateKeyException;
@@ -25,6 +26,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Service
+@DependsOn("agentTaskStartupRecovery")
 public class AgentTaskService {
 
 	private final AgentTaskMapper taskMapper;

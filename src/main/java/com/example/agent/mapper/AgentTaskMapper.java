@@ -35,4 +35,13 @@ public interface AgentTaskMapper {
 	 */
 	int attachLateTrace(@Param("taskId") String taskId, @Param("traceId") String traceId);
 
+	/**
+	 * 单实例应用启动时，处理上次进程遗留的活动任务。
+	 *
+	 * 已到期的任务进入 TIMED_OUT； 其余活动任务进入 FAILED，标记为进程重启中断。
+	 *
+	 * 只恢复数据库状态，不重新投递模型或工具执行。
+	 */
+	int recoverUnfinishedOnStartup();
+
 }
