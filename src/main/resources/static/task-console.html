@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Agent 任务订阅</title>
+    <style>
+        body {
+            max-width: 920px;
+            margin: 32px auto;
+            padding: 0 16px;
+            font-family: system-ui, sans-serif;
+            line-height: 1.6;
+        }
+
+        textarea, input, select {
+            box-sizing: border-box;
+            padding: 8px;
+            font: inherit;
+        }
+
+        textarea, #taskId {
+            width: 100%;
+        }
+
+        button {
+            margin: 8px 8px 8px 0;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+
+        pre {
+            padding: 16px;
+            background: #f4f6f8;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .hint {
+            color: #666;
+        }
+    </style>
+    <script src="/task-console.js" defer></script>
+</head>
+<body>
+<h1>Agent 任务订阅</h1>
+<p class="hint">关闭订阅或页面不会取消已经提交的任务。</p>
+
+<label for="message">问题</label>
+<textarea id="message" rows="3">用两句话解释 Java 接口的作用。</textarea>
+
+<label for="modelId">模型</label>
+<select id="modelId">
+    <option value="deepseek-main">DeepSeek</option>
+</select>
+<button id="submit" type="button">提交新任务</button>
+
+<h2>查看任务</h2>
+<label for="taskId">任务 ID</label>
+<input id="taskId" placeholder="提交后自动填入，也可以粘贴已有 taskId">
+
+<div>
+    <button id="subscribe" type="button">订阅已有任务</button>
+    <button id="disconnect" type="button">断开订阅</button>
+    <button id="query" type="button">仅查询一次</button>
+</div>
+<p class="hint">“仅查询一次”会关闭当前订阅，再获取最新状态。</p>
+
+<p>当前任务：<span id="currentTask">—</span></p>
+<p>连接状态：<span id="connection">尚未连接</span></p>
+<p>任务状态：<span id="status">—</span></p>
+<p>Trace：<span id="traceId">—</span></p>
+<p>任务错误：<span id="taskError">—</span></p>
+
+<h2>关联执行记录中的回答</h2>
+<p class="hint">历史回答不改变上方任务状态；超时或失败任务也可能有关联记录。</p>
+<pre id="answer">尚未获取执行记录</pre>
+
+<h2>订阅日志</h2>
+<pre id="events"></pre>
+</body>
+</html>

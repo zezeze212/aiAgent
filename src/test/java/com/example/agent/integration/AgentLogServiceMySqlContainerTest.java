@@ -510,14 +510,11 @@ class AgentLogServiceMySqlContainerTest {
 		source.setRequestMessage("第一行问题\n第二行补充信息");
 
 		assertThat(agentTaskMapper.insert(source)).isEqualTo(1);
-		assertThat(agentTaskMapper.markRejected(source.getTaskId()))
-				.isEqualTo(1);
+		assertThat(agentTaskMapper.markRejected(source.getTaskId())).isEqualTo(1);
 
-		AgentTask sourceBefore =
-				agentTaskMapper.selectById(source.getTaskId());
+		AgentTask sourceBefore = agentTaskMapper.selectById(source.getTaskId());
 
-		assertThat(sourceBefore.getRequestMessage())
-				.isEqualTo("第一行问题\n第二行补充信息");
+		assertThat(sourceBefore.getRequestMessage()).isEqualTo("第一行问题\n第二行补充信息");
 
 		AgentTask first = new AgentTask();
 		first.setTaskId(UUID.randomUUID().toString().replace("-", ""));
@@ -540,22 +537,16 @@ class AgentLogServiceMySqlContainerTest {
 		second.setTimeoutSeconds(120);
 
 		// 不依赖 Service 检查，数据库本身必须拒绝第二个子任务。
-		assertThatThrownBy(() -> agentTaskMapper.insert(second))
-				.isInstanceOf(DuplicateKeyException.class);
+		assertThatThrownBy(() -> agentTaskMapper.insert(second)).isInstanceOf(DuplicateKeyException.class);
 
-		AgentTask saved =
-				agentTaskMapper.selectByRetryOfTaskId(source.getTaskId());
+		AgentTask saved = agentTaskMapper.selectByRetryOfTaskId(source.getTaskId());
 
 		assertThat(saved.getTaskId()).isEqualTo(first.getTaskId());
-		assertThat(saved.getRequestMessage())
-				.isEqualTo(sourceBefore.getRequestMessage());
-		assertThat(saved.getDeadlineAt())
-				.isEqualTo(saved.getCreatedTime().plusSeconds(120));
+		assertThat(saved.getRequestMessage()).isEqualTo(sourceBefore.getRequestMessage());
+		assertThat(saved.getDeadlineAt()).isEqualTo(saved.getCreatedTime().plusSeconds(120));
 
 		// 创建子任务不能覆盖原任务状态、错误或时间。
-		assertThat(agentTaskMapper.selectById(source.getTaskId()))
-				.usingRecursiveComparison()
-				.isEqualTo(sourceBefore);
+		assertThat(agentTaskMapper.selectById(source.getTaskId())).usingRecursiveComparison().isEqualTo(sourceBefore);
 	}
 
 	private AgentTask insertDeadlineTestTask() {
